@@ -2,23 +2,38 @@ import QtQuick 2.5
 import QtQuick.Controls 2.5
 import QtQuick.Layouts 1.3
 
-Rectangle {
+Item {
     id: foldersPanel
 
     property real fontScale: 1.0
     property var folders: []
     property var syncthingStatus: ({})
     property color accentColor: "#1887f0"
+    property string expandedFolderKey: ""
 
     Layout.fillWidth: true
     Layout.fillHeight: true
-    radius: 22
-    border.width: 2
-    border.color: "#4f5978"
-    color: "#ffffff"
 
     function fs(value) {
         return value * fontScale
+    }
+
+    function folderKey(folder) {
+        if (!folder)
+            return ""
+        return folder.id || folder.label || ""
+    }
+
+    function isFolderExpanded(folder) {
+        var key = folderKey(folder)
+        return key !== "" && key === expandedFolderKey
+    }
+
+    function toggleFolder(folder) {
+        var key = folderKey(folder)
+        if (!key)
+            return
+        expandedFolderKey = expandedFolderKey === key ? "" : key
     }
 
     function formatBytes(value) {
@@ -37,8 +52,15 @@ Rectangle {
 
     function formatPercent(value) {
         if (value === undefined || value === null)
-            return "0%"
-        return value.toFixed(1) + "%"
+            return "0.00%"
+        var numeric = Number(value)
+        if (!isFinite(numeric))
+            numeric = 0
+        if (numeric >= 100)
+            numeric = 100
+        else
+            numeric = Math.floor(Math.max(0, numeric) * 100) / 100
+        return numeric.toFixed(2) + "%"
     }
 
     function folderSizeSummary(folder) {
@@ -98,7 +120,7 @@ Rectangle {
         case "up_to_date":
             return ({ label: label, color: "#c4f485" })
         default:
-        if (folder.paused)
+            if (folder.paused)
                 return ({ label: label, color: "#cfd7eb" })
             return ({ label: label || "Unknown", color: "#ffd2a0" })
         }
@@ -106,35 +128,8 @@ Rectangle {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 24
+        anchors.margins: 0
         spacing: 18
-
-        RowLayout {
-            Layout.fillWidth: true
-        spacing: 12
-
-        Text {
-            text: "Folders"
-                font.pointSize: fs(26)
-            font.bold: true
-                color: "#111c34"
-            }
-
-        Rectangle {
-                visible: Boolean(syncthingStatus && syncthingStatus.available)
-                radius: 12
-                color: "#dfeafe"
-                height: 36
-                width: 160
-
-                Text {
-                    anchors.centerIn: parent
-                    text: `${folders.length} total`
-                    font.pointSize: fs(16)
-                    color: "#111c34"
-                }
-            }
-        }
 
         ScrollView {
             id: folderScroll
@@ -148,6 +143,7 @@ Rectangle {
                 spacing: 16
                 model: folders
                 delegate: Rectangle {
+                    id: folderCard
                     required property var modelData
                     width: folderList.width
                     implicitHeight: contentColumn.implicitHeight + 32
@@ -155,6 +151,7 @@ Rectangle {
                     border.width: 2
                     border.color: "#6c7898"
                     color: "#ffffff"
+                    readonly property bool expanded: foldersPanel.isFolderExpanded(modelData)
 
                     Column {
                         id: contentColumn
@@ -162,7 +159,7 @@ Rectangle {
                         anchors.top: parent.top
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        spacing: 10
+                        spacing: 16
 
                         Row {
                             id: nameAndStatusRow
@@ -170,12 +167,12 @@ Rectangle {
                             width: parent.width
                             spacing: 12
 
-                        Text {
+                            Text {
                                 id: folderName
                                 width: Math.max(0, nameAndStatusRow.width - stateBadge.width - nameAndStatusRow.spacing)
-                            text: modelData.label || modelData.id
+                                text: modelData.label || modelData.id
                                 font.pointSize: fs(20)
-                            font.bold: true
+                                font.bold: true
                                 color: "#14203b"
                                 elide: Text.ElideRight
                                 wrapMode: Text.NoWrap
@@ -189,7 +186,7 @@ Rectangle {
                                 width: Math.max(130, badgeText.implicitWidth + 24)
                                 height: 38
 
-                        Text {
+                                Text {
                                     id: badgeText
                                     anchors.centerIn: parent
                                     text: stateBadge.badge.label
@@ -220,45 +217,47 @@ Rectangle {
                             Layout.fillWidth: true
                             spacing: 12
                             property string sizeSummary: foldersPanel.folderSizeSummary(modelData)
-            property string peerNeedSummary: foldersPanel.folderPeerNeedSummary(modelData)
+                            property string peerNeedSummary: foldersPanel.folderPeerNeedSummary(modelData)
 
-                        Text {
+                            Text {
                                 text: `Progress ${foldersPanel.formatPercent(modelData.completion || 0)}`
                                 font.pointSize: fs(16)
                                 color: "#232a40"
-                        }
+                            }
 
-                        Text {
-                                text: "·"
+                            Text {
+                                text: "•"
                                 font.pointSize: fs(16)
                                 color: "#232a40"
                                 visible: progressRow.sizeSummary.length > 0
-                        }
+                            }
 
-                        Text {
-                            text: progressRow.sizeSummary
+                            Text {
+                                text: progressRow.sizeSummary
                                 font.pointSize: fs(16)
                                 color: "#232a40"
-                visible: progressRow.sizeSummary.length > 0
-            }
+                                visible: progressRow.sizeSummary.length > 0
+                            }
 
-            Text {
-                text: "·"
-                font.pointSize: fs(16)
-                color: "#232a40"
-                visible: progressRow.peerNeedSummary.length > 0
-            }
+                            Text {
+                                text: "•"
+                                font.pointSize: fs(16)
+                                color: "#232a40"
+                                visible: progressRow.peerNeedSummary.length > 0
+                            }
 
-            Text {
-                text: progressRow.peerNeedSummary
-                font.pointSize: fs(16)
-                color: "#232a40"
-                visible: progressRow.peerNeedSummary.length > 0
+                            Text {
+                                text: progressRow.peerNeedSummary
+                                font.pointSize: fs(16)
+                                color: "#232a40"
+                                visible: progressRow.peerNeedSummary.length > 0
                             }
                         }
 
                         Column {
+                            id: folderDetails
                             spacing: 4
+                            visible: folderCard.expanded
 
                             Text {
                                 text: "Recent changes"
@@ -270,7 +269,7 @@ Rectangle {
                             Repeater {
                                 model: (modelData.last_changes || []).slice(0, 3)
                                 delegate: Text {
-                                    text: `${modelData.when} · ${modelData.action} · ${modelData.name}` + (modelData.origin ? ` (${modelData.origin})` : "")
+                                    text: `${modelData.when} • ${modelData.action} • ${modelData.name}` + (modelData.origin ? ` (${modelData.origin})` : "")
                                     font.pointSize: fs(14)
                                     color: "#2b3146"
                                 }
@@ -283,6 +282,12 @@ Rectangle {
                                 color: "#4f566a"
                             }
                         }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.LeftButton
+                        onClicked: foldersPanel.toggleFolder(modelData)
                     }
                 }
             }

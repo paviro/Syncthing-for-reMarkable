@@ -192,20 +192,21 @@ Rectangle {
                 width: 150
                 height: 64
                 radius: 18
-                color: "#ffffff"
-                border.width: 2
-                border.color: "#a7b2ce"
+                color: controlBusy ? "#cfd7eb" : accentColor
+                opacity: controlBusy ? 0.7 : 1
+                border.width: 0
 
                 Text {
                     anchors.centerIn: parent
                     text: "Settings"
                     font.pointSize: fs(18)
                     font.bold: true
-                    color: "#0f1c3f"
+                    color: "#ffffff"
                 }
 
                 MouseArea {
                     anchors.fill: parent
+                    enabled: !controlBusy
                     onClicked: card.settingsRequested()
                 }
             }

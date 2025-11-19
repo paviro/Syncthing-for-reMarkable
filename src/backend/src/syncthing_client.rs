@@ -12,7 +12,7 @@ use tokio::fs;
 use crate::config::Config;
 use crate::types::{
     FolderChange, FolderPayload, FolderPeerNeedSummary, FolderStateCode, MonitorError,
-    SyncthingOverview,
+    PeerFolderState, PeerPayload, SyncthingOverview,
 };
 use tracing::warn;
 
@@ -30,6 +30,7 @@ pub struct SyncthingClient {
 pub struct SyncthingData {
     pub overview: SyncthingOverview,
     pub folders: Vec<FolderPayload>,
+    pub peers: Vec<PeerPayload>,
 }
 
 pub struct EventWaitResult {
@@ -76,8 +77,20 @@ impl SyncthingClient {
             .await?;
         let mut folders = Vec::new();
 
+        let connections = match self.fetch_connections().await {
+            Ok(data) => data,
+            Err(err) => {
+                warn!(error = ?err, "Failed to fetch peer connections");
+                ConnectionsResponse::default()
+            }
+        };
+
         let overview = SyncthingOverview::from_value(&status_value);
         let my_id = overview.my_id.clone();
+
+        let (folder_peer_summaries, peer_progress) = self
+            .collect_peer_metrics(&config.folders, my_id.as_deref())
+            .await;
 
         for folder in &config.folders {
             let query = FolderStatusQuery {
@@ -85,9 +98,7 @@ impl SyncthingClient {
             };
             let status: Value = self.get_json_with_query("/rest/db/status", &query).await?;
             let last_changes = recent.get(&folder.id).cloned().unwrap_or_default();
-            let peer_need_summary = self
-                .collect_peer_need_summary(folder, my_id.as_deref())
-                .await;
+            let peer_need_summary = folder_peer_summaries.get(&folder.id).copied();
             folders.push(FolderPayload::from_parts(
                 folder,
                 &status,
@@ -96,7 +107,18 @@ impl SyncthingClient {
             ));
         }
 
-        Ok(SyncthingData { overview, folders })
+        let peers = self.compose_peers(
+            &config.devices,
+            my_id.as_deref(),
+            &peer_progress,
+            &connections,
+        );
+
+        Ok(SyncthingData {
+            overview,
+            folders,
+            peers,
+        })
     }
 
     pub async fn wait_for_updates(
@@ -171,53 +193,110 @@ impl SyncthingClient {
         Ok(changes)
     }
 
-    async fn collect_peer_need_summary(
+    async fn collect_peer_metrics(
         &mut self,
-        folder: &FolderConfig,
+        folders: &[FolderConfig],
         my_id: Option<&str>,
-    ) -> Option<FolderPeerNeedSummary> {
-        if folder.devices.is_empty() {
-            return None;
+    ) -> (
+        HashMap<String, FolderPeerNeedSummary>,
+        HashMap<String, PeerProgress>,
+    ) {
+        let mut folder_summaries: HashMap<String, FolderPeerNeedSummary> = HashMap::new();
+        let mut peer_progress: HashMap<String, PeerProgress> = HashMap::new();
+
+        for folder in folders {
+            if folder.devices.is_empty() {
+                continue;
+            }
+
+            for device in &folder.devices {
+                if device.device_id.is_empty() {
+                    continue;
+                }
+                if my_id
+                    .map(|local| local == device.device_id.as_str())
+                    .unwrap_or(false)
+                {
+                    continue;
+                }
+
+                match self
+                    .query_remote_completion(folder.id.as_str(), device.device_id.as_str())
+                    .await
+                {
+                    Ok(remote_completion) => {
+                        let need = remote_completion.need_bytes.unwrap_or(0);
+                        if need > 0 {
+                            let entry = folder_summaries
+                                .entry(folder.id.clone())
+                                .or_insert_with(FolderPeerNeedSummary::default);
+                            entry.peer_count = entry.peer_count.saturating_add(1);
+                            entry.need_bytes = entry.need_bytes.saturating_add(need);
+                        }
+
+                        peer_progress
+                            .entry(device.device_id.clone())
+                            .or_insert_with(PeerProgress::default)
+                            .record(folder, &remote_completion);
+                    }
+                    Err(err) => {
+                        warn!(
+                            folder = %folder.id,
+                            device = %device.device_id,
+                            error = ?err,
+                            "Failed to query remote completion"
+                        );
+                    }
+                }
+            }
         }
 
-        let mut summary = FolderPeerNeedSummary::default();
-        for device in &folder.devices {
+        (folder_summaries, peer_progress)
+    }
+
+    fn compose_peers(
+        &self,
+        devices: &[DeviceConfig],
+        my_id: Option<&str>,
+        peer_progress: &HashMap<String, PeerProgress>,
+        connections: &ConnectionsResponse,
+    ) -> Vec<PeerPayload> {
+        let mut peers = Vec::new();
+        for device in devices {
             if device.device_id.is_empty() {
                 continue;
             }
-            if let Some(local_id) = my_id {
-                if device.device_id == local_id {
-                    continue;
-                }
-            }
-
-            match self
-                .query_remote_completion(folder.id.as_str(), device.device_id.as_str())
-                .await
+            if my_id
+                .map(|local| local == device.device_id.as_str())
+                .unwrap_or(false)
             {
-                Ok(completion) => {
-                    let need = completion.need_bytes.unwrap_or(0);
-                    if need > 0 {
-                        summary.peer_count += 1;
-                        summary.need_bytes = summary.need_bytes.saturating_add(need);
-                    }
-                }
-                Err(err) => {
-                    warn!(
-                        folder = %folder.id,
-                        device = %device.device_id,
-                        error = ?err,
-                        "Failed to query remote completion"
-                    );
-                }
+                continue;
             }
+
+            let connection = connections.connections.get(&device.device_id);
+            let progress = peer_progress.get(&device.device_id);
+            let paused =
+                device.paused.unwrap_or(false) || connection.map(|c| c.paused).unwrap_or(false);
+
+            peers.push(PeerPayload {
+                id: device.device_id.clone(),
+                name: device
+                    .name
+                    .clone()
+                    .unwrap_or_else(|| device.device_id.clone()),
+                connected: connection.map(|c| c.connected).unwrap_or(false),
+                paused,
+                address: connection.and_then(|c| c.address.clone()),
+                client_version: connection.and_then(|c| c.client_version.clone()),
+                last_seen: connection.and_then(|c| c.last_seen.clone()),
+                completion: progress.and_then(|p| p.avg_completion()),
+                need_bytes: progress.and_then(|p| p.outstanding_need()),
+                folders: progress.map(|p| p.folders.clone()).unwrap_or_default(),
+            });
         }
 
-        if summary.peer_count > 0 {
-            Some(summary)
-        } else {
-            None
-        }
+        peers.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        peers
     }
 
     async fn query_remote_completion(
@@ -231,6 +310,10 @@ impl SyncthingClient {
         };
         self.get_json_with_query("/rest/db/completion", &query)
             .await
+    }
+
+    async fn fetch_connections(&mut self) -> Result<ConnectionsResponse, MonitorError> {
+        self.get_json("/rest/system/connections").await
     }
 
     async fn get_json<T>(&mut self, path: &str) -> Result<T, MonitorError>
@@ -358,6 +441,8 @@ struct CompletionQuery<'a> {
 struct SyncthingConfig {
     #[serde(default)]
     folders: Vec<FolderConfig>,
+    #[serde(default)]
+    devices: Vec<DeviceConfig>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -379,6 +464,36 @@ struct FolderDevice {
     device_id: String,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+struct DeviceConfig {
+    #[serde(rename = "deviceID")]
+    device_id: String,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    paused: Option<bool>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct ConnectionsResponse {
+    #[serde(default)]
+    connections: HashMap<String, ConnectionState>,
+}
+
+#[derive(Debug, Deserialize, Clone, Default)]
+struct ConnectionState {
+    #[serde(default)]
+    connected: bool,
+    #[serde(default)]
+    paused: bool,
+    #[serde(default, rename = "clientVersion")]
+    client_version: Option<String>,
+    #[serde(default)]
+    address: Option<String>,
+    #[serde(default, rename = "lastSeen")]
+    last_seen: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 struct SyncthingEvent {
     id: u64,
@@ -394,6 +509,55 @@ struct RemoteCompletion {
     completion: Option<f64>,
     #[serde(rename = "needBytes")]
     need_bytes: Option<u64>,
+}
+
+#[derive(Default, Clone)]
+struct PeerProgress {
+    total_completion: f64,
+    completion_samples: u32,
+    total_need_bytes: u64,
+    folders: Vec<PeerFolderState>,
+}
+
+impl PeerProgress {
+    fn record(&mut self, folder: &FolderConfig, completion: &RemoteCompletion) {
+        if let Some(value) = completion.completion {
+            self.total_completion += value;
+            self.completion_samples = self.completion_samples.saturating_add(1);
+        }
+        if let Some(need) = completion.need_bytes {
+            self.total_need_bytes = self.total_need_bytes.saturating_add(need);
+        }
+        self.folders.push(PeerFolderState {
+            folder_id: folder.id.clone(),
+            folder_label: folder.label.clone().unwrap_or_else(|| folder.id.clone()),
+            completion: completion.completion,
+            need_bytes: completion.need_bytes,
+        });
+    }
+
+    fn avg_completion(&self) -> Option<f64> {
+        if self.completion_samples == 0 {
+            None
+        } else {
+            let mut average = self.total_completion / self.completion_samples as f64;
+            if self.total_need_bytes > 0 && average > 99.99 {
+                average = 99.99;
+            }
+            if average > 100.0 {
+                average = 100.0;
+            }
+            Some(average)
+        }
+    }
+
+    fn outstanding_need(&self) -> Option<u64> {
+        if self.total_need_bytes > 0 {
+            Some(self.total_need_bytes)
+        } else {
+            None
+        }
+    }
 }
 
 impl SyncthingOverview {

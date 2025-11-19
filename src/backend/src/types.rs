@@ -26,6 +26,7 @@ pub struct StatusPayload {
     pub systemd: SystemdStatus,
     pub syncthing: SyncthingOverview,
     pub folders: Vec<FolderPayload>,
+    pub peers: Vec<PeerPayload>,
     pub gui_address: Option<String>,
 }
 
@@ -109,4 +110,34 @@ pub struct FolderChange {
 pub struct FolderPeerNeedSummary {
     pub peer_count: u32,
     pub need_bytes: u64,
+}
+
+#[derive(Debug, Serialize, Clone, Default)]
+pub struct PeerFolderState {
+    pub folder_id: String,
+    pub folder_label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completion: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub need_bytes: Option<u64>,
+}
+
+#[derive(Debug, Serialize, Clone, Default)]
+pub struct PeerPayload {
+    pub id: String,
+    pub name: String,
+    pub connected: bool,
+    pub paused: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub address: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_seen: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completion: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub need_bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub folders: Vec<PeerFolderState>,
 }

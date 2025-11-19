@@ -14,19 +14,29 @@ pub async fn build_status_payload(
     let timestamp = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
     let systemd = query_systemd_status(config).await;
 
-    let (syncthing, folders, gui_address) = match ensure_client(config, client_slot).await {
+    let (syncthing, folders, peers, gui_address) = match ensure_client(config, client_slot).await {
         Ok(client) => {
             let gui_addr = client.get_gui_address().await.ok();
             match client.compose_payload().await {
-                Ok(payload) => (payload.overview, payload.folders, gui_addr),
+                Ok(payload) => (payload.overview, payload.folders, payload.peers, gui_addr),
                 Err(err) => {
                     warn!(error = ?err, "Collecting payload failed");
                     *client_slot = None;
-                    (SyncthingOverview::error(err.to_string()), Vec::new(), None)
+                    (
+                        SyncthingOverview::error(err.to_string()),
+                        Vec::new(),
+                        Vec::new(),
+                        None,
+                    )
                 }
             }
         }
-        Err(err) => (SyncthingOverview::error(err.to_string()), Vec::new(), None),
+        Err(err) => (
+            SyncthingOverview::error(err.to_string()),
+            Vec::new(),
+            Vec::new(),
+            None,
+        ),
     };
 
     StatusPayload {
@@ -35,6 +45,7 @@ pub async fn build_status_payload(
         systemd,
         syncthing,
         folders,
+        peers,
         gui_address,
     }
 }

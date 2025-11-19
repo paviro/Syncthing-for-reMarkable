@@ -18,6 +18,7 @@ Rectangle {
     property var serviceStatus: ({})
     property var syncthingStatus: ({})
     property var folders: []
+    property var peers: []
     property bool controlBusy: false
     property var installerStatus: null
     property real fontScale: 1.25
@@ -49,6 +50,7 @@ Rectangle {
                     serviceStatus = payload.systemd || {}
                     syncthingStatus = payload.syncthing || {}
                     folders = payload.folders || []
+                    peers = payload.peers || []
                     guiAddress = payload.gui_address || ""
                 } catch (err) {
                     console.warn("Failed to parse backend data", err)
@@ -222,9 +224,10 @@ Rectangle {
                 onSettingsRequested: settingsOverlay.show()
             }
 
-            FolderListPanel {
+            FolderPeersPanel {
                 fontScale: root.fontScale
                 folders: root.folders
+                peers: root.peers
                 syncthingStatus: root.syncthingStatus
                 Layout.fillWidth: true
                 Layout.fillHeight: true
