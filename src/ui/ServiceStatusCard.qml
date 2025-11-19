@@ -26,22 +26,9 @@ Rectangle {
         return value * fontScale
     }
 
-    function systemdSummary() {
-        var state = (serviceStatus.active_state || "unknown").toUpperCase()
-        var sub = serviceStatus.sub_state || ""
-        return state + (sub ? " (" + sub + ")" : "")
-    }
-
     function serviceHealthy() {
         const state = (serviceStatus.active_state || "").toLowerCase()
         return state === "active"
-    }
-
-    function getSyncthingSummary() {
-        if (syncthingStatus.available) {
-            return `Online (${syncthingStatus.version || "unknown"})`
-        }
-        return "Unavailable"
     }
 
     function capitalize(text) {

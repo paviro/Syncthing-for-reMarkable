@@ -1341,7 +1341,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "syncthing-monitor-backend"
+name = "syncthing-rm-appload-backend"
 version = "0.2.0"
 dependencies = [
  "appload-client",

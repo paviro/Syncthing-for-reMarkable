@@ -26,7 +26,6 @@ use crate::systemd::control_syncthing_service;
 use crate::types::MonitorError;
 use crate::updater::{UpdateStatus, Updater};
 
-const MSG_REFRESH_REQUEST: u32 = 1;
 const MSG_CONTROL_REQUEST: u32 = 2;
 const MSG_INSTALL_TRIGGER: u32 = 3;
 const MSG_GUI_ADDRESS_TOGGLE: u32 = 4;
@@ -139,9 +138,6 @@ impl AppLoadBackend for SyncthingBackend {
                 self.ensure_realtime_updates(functionality);
                 self.send_install_status(functionality).await;
                 self.send_status(functionality, "frontend-connected").await;
-            }
-            MSG_REFRESH_REQUEST => {
-                self.send_status(functionality, "manual").await;
             }
             MSG_CONTROL_REQUEST => {
                 match serde_json::from_str::<ControlRequest>(&message.contents) {

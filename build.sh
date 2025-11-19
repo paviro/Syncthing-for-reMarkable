@@ -52,7 +52,7 @@ build_arch() {
     rustup target add "$target_triple" >/dev/null
 
     (cd "$SCRIPT_DIR/src/backend" && cargo build --release --target "$target_triple" --message-format=short)
-    cp "$SCRIPT_DIR/src/backend/target/$target_triple/release/syncthing-monitor-backend" "$output_dir/backend/entry"
+    cp "$SCRIPT_DIR/src/backend/target/$target_triple/release/syncthing-rm-appload-backend" "$output_dir/backend/entry"
 
     mkdir -p "$RELEASE_DIR"
     rm -f "$package_path"

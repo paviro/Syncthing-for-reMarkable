@@ -38,13 +38,6 @@ Rectangle {
         return guiAddress.startsWith("0.0.0.0:")
     }
 
-    function getCurrentVersion() {
-        if (updateCheckResult && updateCheckResult.current_version) {
-            return updateCheckResult.current_version
-        }
-        return "1.0.0"
-    }
-
     function isRestartPending() {
         return updateStatus && updateStatus.pending_restart
     }

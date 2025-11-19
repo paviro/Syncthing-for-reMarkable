@@ -120,10 +120,6 @@ Rectangle {
         }
     }
 
-    function requestRefresh(reason) {
-        backend.sendMessage(1, JSON.stringify({ reason: reason || "manual" }))
-    }
-
     function controlService(action) {
         if (controlBusy)
             return
@@ -182,8 +178,6 @@ Rectangle {
             }
         }
     }
-
-    Component.onCompleted: requestRefresh("initial")
 
     StackLayout {
         anchors.fill: parent
