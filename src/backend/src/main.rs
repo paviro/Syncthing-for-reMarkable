@@ -14,7 +14,8 @@ use appload_client::{
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use tokio::time::{sleep, Duration};
+use tokio::task::JoinHandle;
+use tokio::time::{sleep, Duration, Instant};
 use tracing::{error, warn};
 use tracing_subscriber::EnvFilter;
 
@@ -42,6 +43,9 @@ const MSG_UPDATE_DOWNLOAD_STATUS: u32 = 105;
 const MSG_ERROR: u32 = 500;
 
 const UPDATE_RESTART_DELAY_SECS: u64 = 10;
+const EVENT_STREAM_TIMEOUT_SECS: u64 = 30;
+const EVENT_HEARTBEAT_SECS: u64 = 5;
+const EVENT_RECONNECT_DELAY_SECS: u64 = 5;
 
 #[tokio::main]
 async fn main() {
@@ -80,6 +84,7 @@ struct SyncthingBackend {
     pending_update_url: Option<String>,
     update_pending_restart: bool,
     update_restart_seconds_remaining: Option<u32>,
+    realtime_task: Option<JoinHandle<()>>,
 }
 
 impl SyncthingBackend {
@@ -101,6 +106,7 @@ impl SyncthingBackend {
             pending_update_url: None,
             update_pending_restart: false,
             update_restart_seconds_remaining: None,
+            realtime_task: None,
         }
     }
 
@@ -130,6 +136,7 @@ impl AppLoadBackend for SyncthingBackend {
     async fn handle_message(&mut self, functionality: &BackendReplier<Self>, message: Message) {
         match message.msg_type {
             MSG_SYSTEM_NEW_COORDINATOR => {
+                self.ensure_realtime_updates(functionality);
                 self.send_install_status(functionality).await;
                 self.send_status(functionality, "frontend-connected").await;
             }
@@ -287,6 +294,23 @@ impl ServiceAction {
 }
 
 impl SyncthingBackend {
+    fn ensure_realtime_updates(&mut self, functionality: &BackendReplier<Self>) {
+        let already_running = self
+            .realtime_task
+            .as_ref()
+            .map(|handle| !handle.is_finished())
+            .unwrap_or(false);
+        if already_running {
+            return;
+        }
+
+        let config = self.config.clone();
+        let replier = functionality.clone();
+        self.realtime_task = Some(tokio::spawn(async move {
+            drive_syncthing_stream(replier, config).await;
+        }));
+    }
+
     async fn send_install_status(&self, functionality: &BackendReplier<Self>) {
         if let Ok(payload) = serde_json::to_string(&self.build_install_status().await) {
             if let Err(err) = functionality.send_message(MSG_INSTALL_STATUS, &payload) {
@@ -460,10 +484,7 @@ impl SyncthingBackend {
         self.pending_update_url = None;
         self.update_pending_restart = true;
         self.update_restart_seconds_remaining = Some(UPDATE_RESTART_DELAY_SECS as u32);
-        self.update_progress_message = Some(
-            "Update installed. Restarting shortly..."
-                .to_string(),
-        );
+        self.update_progress_message = Some("Update installed. Restarting shortly...".to_string());
         self.send_update_status(functionality).await;
         self.schedule_delayed_restart();
     }
@@ -481,11 +502,63 @@ impl SyncthingBackend {
             self.send_error(functionality, "No pending update closure");
             return;
         }
-        self.update_progress_message =
-            Some("Restarting now...".to_string());
+        self.update_progress_message = Some("Restarting now...".to_string());
         self.update_restart_seconds_remaining = Some(0);
         self.send_update_status(functionality).await;
         sleep(Duration::from_millis(250)).await;
         std::process::exit(0);
+    }
+}
+
+async fn drive_syncthing_stream(functionality: BackendReplier<SyncthingBackend>, config: Config) {
+    let mut client: Option<SyncthingClient> = None;
+    let mut last_event_id: u64 = 0;
+    let mut last_emit = Instant::now();
+
+    loop {
+        if client.is_none() {
+            match SyncthingClient::discover(&config).await {
+                Ok(new_client) => {
+                    client = Some(new_client);
+                    last_event_id = 0;
+                    last_emit = Instant::now() - Duration::from_secs(EVENT_HEARTBEAT_SECS);
+                }
+                Err(err) => {
+                    warn!(error = ?err, "Failed to initialize Syncthing event watcher");
+                    sleep(Duration::from_secs(EVENT_RECONNECT_DELAY_SECS)).await;
+                    continue;
+                }
+            }
+        }
+
+        let timeout = Duration::from_secs(EVENT_STREAM_TIMEOUT_SECS);
+        let wait_result = client
+            .as_mut()
+            .expect("client present")
+            .wait_for_updates(last_event_id, timeout)
+            .await;
+
+        match wait_result {
+            Ok(result) => {
+                last_event_id = result.last_event_id;
+                let due_to_event = result.has_updates;
+                let heartbeat_due = last_emit.elapsed().as_secs() >= EVENT_HEARTBEAT_SECS;
+                if due_to_event || heartbeat_due {
+                    let reason = if due_to_event {
+                        "syncthing-event"
+                    } else {
+                        "syncthing-heartbeat"
+                    };
+                    let mut backend = functionality.backend.lock().await;
+                    backend.send_status(&functionality, reason).await;
+                    last_emit = Instant::now();
+                }
+            }
+            Err(err) => {
+                warn!(error = ?err, "Syncthing event watcher error");
+                client = None;
+                sleep(Duration::from_secs(EVENT_RECONNECT_DELAY_SECS)).await;
+            }
+        }
     }
 }

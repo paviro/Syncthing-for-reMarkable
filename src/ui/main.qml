@@ -169,13 +169,6 @@ Rectangle {
     }
 
     Timer {
-        interval: 5000
-        repeat: true
-        running: true
-        onTriggered: requestRefresh("timer")
-    }
-
-    Timer {
         id: restartCountdownTimer
         interval: 1000
         repeat: true

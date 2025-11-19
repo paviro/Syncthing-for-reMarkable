@@ -45,22 +45,32 @@ Rectangle {
         if (!folder)
             return ({ label: "Unknown", color: "#ffd2a0" })
 
+        var label = (folder.state || "").toString()
+        if (label.length === 0)
+            label = folder.paused ? "Paused" : "Unknown"
+
+        var code = (folder.state_code || "unknown").toString()
+        switch (code) {
+        case "paused":
+            return ({ label: label, color: "#cfd7eb" })
+        case "error":
+            return ({ label: label, color: "#ffb3b3" })
+        case "waiting_to_scan":
+            return ({ label: label, color: "#dfeafe" })
+        case "scanning":
+            return ({ label: label, color: "#ffe3a3" })
+        case "preparing_to_sync":
+            return ({ label: label, color: "#ffe3a3" })
+        case "syncing":
+        case "pending_changes":
+            return ({ label: label, color: "#ffd2a0" })
+        case "up_to_date":
+            return ({ label: label, color: "#c4f485" })
+        default:
         if (folder.paused)
-            return ({ label: "Paused", color: "#cfd7eb" })
-
-        var stateValue = (folder.state || "").toString().toLowerCase()
-        if (stateValue.indexOf("error") !== -1)
-            return ({ label: "Error", color: "#ffb3b3" })
-
-        var needBytes = Number(folder.need_bytes || 0)
-        var syncing = stateValue.indexOf("syncing") === 0
-                || stateValue.indexOf("scanning") === 0
-                || needBytes > 0
-
-        if (syncing)
-            return ({ label: "Syncing", color: "#ffd2a0" })
-
-        return ({ label: "Up to date", color: "#c4f485" })
+                return ({ label: label, color: "#cfd7eb" })
+            return ({ label: label || "Unknown", color: "#ffd2a0" })
+        }
     }
 
     ColumnLayout {

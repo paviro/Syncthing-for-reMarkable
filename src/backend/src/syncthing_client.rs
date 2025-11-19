@@ -10,7 +10,7 @@ use serde_json::Value;
 use tokio::fs;
 
 use crate::config::Config;
-use crate::types::{FolderChange, FolderPayload, MonitorError, SyncthingOverview};
+use crate::types::{FolderChange, FolderPayload, FolderStateCode, MonitorError, SyncthingOverview};
 
 const RECENT_EVENTS_LIMIT: u32 = 200;
 const RECENT_FILES_PER_FOLDER: usize = 4;
@@ -26,6 +26,11 @@ pub struct SyncthingClient {
 pub struct SyncthingData {
     pub overview: SyncthingOverview,
     pub folders: Vec<FolderPayload>,
+}
+
+pub struct EventWaitResult {
+    pub last_event_id: u64,
+    pub has_updates: bool,
 }
 
 impl SyncthingClient {
@@ -79,6 +84,33 @@ impl SyncthingClient {
         Ok(SyncthingData {
             overview: SyncthingOverview::from_value(&status_value),
             folders,
+        })
+    }
+
+    pub async fn wait_for_updates(
+        &mut self,
+        since: u64,
+        timeout: Duration,
+    ) -> Result<EventWaitResult, MonitorError> {
+        let timeout_secs = timeout.as_secs().clamp(1, 300);
+        let query = EventStreamQuery {
+            since,
+            limit: 1,
+            timeout: timeout_secs,
+            events: None,
+        };
+        let events: Vec<SyncthingEvent> = self.get_json_with_query("/rest/events", &query).await?;
+
+        let mut last_event_id = since;
+        for event in &events {
+            if event.id > last_event_id {
+                last_event_id = event.id;
+            }
+        }
+
+        Ok(EventWaitResult {
+            last_event_id,
+            has_updates: !events.is_empty(),
         })
     }
 
@@ -233,6 +265,15 @@ struct EventsQuery {
     limit: u32,
 }
 
+#[derive(Serialize)]
+struct EventStreamQuery<'a> {
+    since: u64,
+    limit: u32,
+    timeout: u64,
+    #[serde(rename = "events", skip_serializing_if = "Option::is_none")]
+    events: Option<&'a [&'a str]>,
+}
+
 #[derive(Debug, Deserialize)]
 struct SyncthingConfig {
     #[serde(default)]
@@ -313,20 +354,18 @@ impl FolderPayload {
         let state_raw = status
             .get("state")
             .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| "unknown".to_string());
+            .map(|s| s.to_string());
         let paused = folder.paused.unwrap_or(false);
+        let state_info =
+            humanize_folder_state(paused, state_raw.as_deref(), need_bytes, global_bytes);
 
         Self {
             id: folder.id.clone(),
             label: folder.label.clone().unwrap_or_else(|| folder.id.clone()),
             path: folder.path.clone(),
-            state: humanize_folder_state(
-                paused,
-                Some(state_raw.as_str()),
-                need_bytes,
-                global_bytes,
-            ),
+            state: state_info.label,
+            state_code: state_info.code,
+            state_raw,
             paused,
             global_bytes,
             in_sync_bytes,
@@ -429,39 +468,62 @@ fn humanize_folder_state(
     state: Option<&str>,
     need_bytes: Option<u64>,
     global_bytes: Option<u64>,
-) -> String {
+) -> FolderStateInfo {
     if paused {
-        return "Paused".to_string();
+        return FolderStateInfo::new("Paused", FolderStateCode::Paused);
     }
 
     if let Some(state_value) = state {
+        let normalized = state_value.to_ascii_lowercase();
+        if normalized.contains("waiting") && normalized.contains("scan") {
+            return FolderStateInfo::new("Waiting to scan", FolderStateCode::WaitingToScan);
+        }
+        if normalized.contains("preparing") && normalized.contains("sync") {
+            return FolderStateInfo::new("Preparing to sync", FolderStateCode::PreparingToSync);
+        }
+
         if state_value.eq_ignore_ascii_case("scanning") {
-            return "Scanning".to_string();
+            return FolderStateInfo::new("Scanning", FolderStateCode::Scanning);
         }
         if state_value.eq_ignore_ascii_case("syncing") {
             if let (Some(global), Some(need)) = (global_bytes, need_bytes) {
                 if global > 0 && need > 0 {
                     let done = 100.0 - ((need as f64 / global as f64) * 100.0);
-                    return format!("Syncing ({:.1}%)", done.clamp(0.0, 100.0));
+                    let label = format!("Syncing ({:.1}%)", done.clamp(0.0, 100.0));
+                    return FolderStateInfo::new(label, FolderStateCode::Syncing);
                 }
             }
-            return "Syncing".to_string();
+            return FolderStateInfo::new("Syncing", FolderStateCode::Syncing);
         }
         if state_value.eq_ignore_ascii_case("idle") {
             if need_bytes.unwrap_or(0) == 0 {
-                return "Up to date".to_string();
+                return FolderStateInfo::new("Up to date", FolderStateCode::UpToDate);
             }
-            return "Idle / pending changes".to_string();
+            return FolderStateInfo::new("Idle / pending changes", FolderStateCode::PendingChanges);
         }
         if state_value.eq_ignore_ascii_case("error") {
-            return "Error".to_string();
+            return FolderStateInfo::new("Error", FolderStateCode::Error);
         }
     }
 
     if need_bytes.unwrap_or(0) == 0 {
-        "Up to date".to_string()
+        FolderStateInfo::new("Up to date", FolderStateCode::UpToDate)
     } else {
-        "Unknown state".to_string()
+        FolderStateInfo::new("Unknown state", FolderStateCode::Unknown)
+    }
+}
+
+struct FolderStateInfo {
+    label: String,
+    code: FolderStateCode,
+}
+
+impl FolderStateInfo {
+    fn new(label: impl Into<String>, code: FolderStateCode) -> Self {
+        Self {
+            label: label.into(),
+            code,
+        }
     }
 }
 
