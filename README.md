@@ -64,6 +64,8 @@ A [rm-appload](https://github.com/asivery/rm-appload) Syncthing application for 
    ```
    /home/root/xovi/exthome/appload/syncthing
    ```
+   
+   > **Note:** Most users can ignore the `config.sample.json` file when using the auto-installer - it's not needed! The auto-installer handles everything automatically. This configuration file is only for advanced users who want to manually manage their Syncthing installation.
 
 3. **Launch Syncthing**
    
@@ -74,4 +76,3 @@ A [rm-appload](https://github.com/asivery/rm-appload) Syncthing application for 
 4. **Closing the App**
    
    To close the app, swipe down from the center top of the screen to display the AppLoad window controls and tap the X button.
-
