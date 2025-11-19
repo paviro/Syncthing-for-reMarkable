@@ -15,6 +15,21 @@ Rectangle {
     anchors.fill: parent
     color: backgroundColor
 
+    // Message type constants (must match backend protocol)
+    readonly property int msgControlRequest: 1
+    readonly property int msgInstallTrigger: 2
+    readonly property int msgGuiAddressToggle: 3
+    readonly property int msgUpdateCheckRequest: 4
+    readonly property int msgUpdateDownloadRequest: 5
+    readonly property int msgUpdateRestartRequest: 6
+    readonly property int msgStatusUpdate: 100
+    readonly property int msgControlResult: 101
+    readonly property int msgInstallStatus: 102
+    readonly property int msgGuiAddressResult: 103
+    readonly property int msgUpdateCheckResult: 104
+    readonly property int msgUpdateDownloadStatus: 105
+    readonly property int msgError: 500
+
     property var serviceStatus: ({})
     property var syncthingStatus: ({})
     property var folders: []
@@ -44,7 +59,7 @@ Rectangle {
             if (type === 0 || contents === undefined)
                 return
             switch (type) {
-            case 100:
+            case root.msgStatusUpdate:
                 try {
                     const payload = JSON.parse(contents)
                     serviceStatus = payload.systemd || {}
@@ -56,7 +71,7 @@ Rectangle {
                     console.warn("Failed to parse backend data", err)
                 }
                 break
-            case 101:
+            case root.msgControlResult:
                 try {
                     const control = JSON.parse(contents)
                 } catch (errControl) {
@@ -64,14 +79,14 @@ Rectangle {
                 }
                 controlBusy = false
                 break
-            case 102:
+            case root.msgInstallStatus:
                 try {
                     installerStatus = JSON.parse(contents)
                 } catch (errInstaller) {
                     console.warn("Installer status error", errInstaller)
                 }
                 break
-            case 103:
+            case root.msgGuiAddressResult:
                 try {
                     const guiAddressResult = JSON.parse(contents)
                 } catch (errGuiAddress) {
@@ -79,14 +94,14 @@ Rectangle {
                 }
                 controlBusy = false
                 break
-            case 104:
+            case root.msgUpdateCheckResult:
                 try {
                     updateCheckResult = JSON.parse(contents)
                 } catch (errUpdate) {
                     console.warn("Update check error", errUpdate)
                 }
                 break
-            case 105:
+            case root.msgUpdateDownloadStatus:
                 try {
                     updateStatus = JSON.parse(contents)
                     if (updateStatus.restart_seconds_remaining !== undefined && updateStatus.restart_seconds_remaining !== null) {
@@ -105,7 +120,7 @@ Rectangle {
                     console.warn("Update status error", errUpdateStatus)
                 }
                 break
-            case 500:
+            case root.msgError:
                 try {
                     const errorPayload = JSON.parse(contents)
                 } catch (errBackend) {
@@ -124,7 +139,7 @@ Rectangle {
         if (controlBusy)
             return
         controlBusy = true
-        backend.sendMessage(2, JSON.stringify({ action: action }))
+        backend.sendMessage(msgControlRequest, JSON.stringify({ action: action }))
     }
 
     function installerNeedsAttention() {
@@ -144,26 +159,26 @@ Rectangle {
     function triggerInstaller() {
         if (!installerStatus || installerStatus.in_progress)
             return
-        backend.sendMessage(3, JSON.stringify({}))
+        backend.sendMessage(msgInstallTrigger, JSON.stringify({}))
     }
 
     function toggleGuiAddress(address) {
         if (controlBusy)
             return
         controlBusy = true
-        backend.sendMessage(4, JSON.stringify({ address: address }))
+        backend.sendMessage(msgGuiAddressToggle, JSON.stringify({ address: address }))
     }
 
     function checkForUpdates() {
-        backend.sendMessage(5, JSON.stringify({}))
+        backend.sendMessage(msgUpdateCheckRequest, JSON.stringify({}))
     }
 
     function downloadUpdate() {
-        backend.sendMessage(6, JSON.stringify({}))
+        backend.sendMessage(msgUpdateDownloadRequest, JSON.stringify({}))
     }
 
     function requestRestart() {
-        backend.sendMessage(7, JSON.stringify({}))
+        backend.sendMessage(msgUpdateRestartRequest, JSON.stringify({}))
     }
 
     Timer {
