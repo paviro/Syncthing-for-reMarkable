@@ -1,11 +1,7 @@
-mod architecture;
-mod archive;
 mod config;
 mod deployment;
-mod filesystem;
 mod status_report;
 mod syncthing_client;
-mod systemctl;
 mod systemd;
 mod types;
 mod utils;

@@ -1,3 +1,5 @@
+pub mod archive;
+pub mod architecture;
 pub mod assets;
 pub mod client;
 pub mod download;

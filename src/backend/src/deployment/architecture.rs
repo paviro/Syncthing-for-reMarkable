@@ -62,3 +62,4 @@ pub async fn detect_architecture() -> Result<Architecture, MonitorError> {
         ))
     })
 }
+

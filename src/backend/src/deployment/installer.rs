@@ -7,15 +7,14 @@ use tokio::fs;
 use tokio::process::Command;
 use tracing::{error, warn};
 
-use crate::architecture::detect_architecture;
-use crate::archive;
+use crate::deployment::architecture::detect_architecture;
+use crate::deployment::archive;
 use crate::config::Config;
 use crate::deployment::assets::{self, ReleaseAsset};
 use crate::deployment::client::{default_request_timeout, github_client};
 use crate::deployment::download::download_to_path;
-use crate::systemctl;
 use crate::deployment::DownloadProgressSender;
-use crate::filesystem;
+use crate::utils::{filesystem, systemctl};
 use crate::types::MonitorError;
 
 const RELEASE_API_URL: &str = "https://api.github.com/repos/syncthing/syncthing/releases/latest";

@@ -8,8 +8,8 @@ use tempfile::TempDir;
 use tokio::fs;
 use tracing::info;
 
-use crate::architecture::{detect_architecture, Architecture};
-use crate::archive;
+use crate::deployment::architecture::{detect_architecture, Architecture};
+use crate::deployment::archive;
 use crate::config::Config;
 use crate::deployment::assets;
 use crate::deployment::client::{default_request_timeout, github_client};

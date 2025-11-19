@@ -4,8 +4,7 @@ use tokio::process::Command;
 use tracing::{error, warn};
 
 use crate::config::Config;
-use crate::filesystem;
-use crate::systemctl;
+use crate::utils::{filesystem, systemctl};
 use crate::types::MonitorError;
 
 use super::actions::ServiceAction;
