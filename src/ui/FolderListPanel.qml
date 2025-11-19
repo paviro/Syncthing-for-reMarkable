@@ -79,8 +79,8 @@ Rectangle {
                 color: "#111c34"
             }
 
-            Rectangle {
-                visible: syncthingStatus && syncthingStatus.available
+        Rectangle {
+                visible: Boolean(syncthingStatus && syncthingStatus.available)
                 radius: 12
                 color: "#dfeafe"
                 height: 36
