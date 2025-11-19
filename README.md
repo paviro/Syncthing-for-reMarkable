@@ -55,7 +55,9 @@ A [rm-appload](https://github.com/asivery/rm-appload) Syncthing application for 
 
 1. **Download Syncthing for reMarkable**
    
-   Download the [latest release](https://github.com/paviro/Syncthing-for-reMarkable/releases) of Syncthing for reMarkable.
+   Download the [latest release](https://github.com/paviro/Syncthing-for-reMarkable/releases) of Syncthing for reMarkable and pick the archive that matches your device:
+   - **reMarkable Paper Pro / Paper Pro Move** → `syncthing-rm-appload-aarch64.zip`
+   - **reMarkable 2** → `syncthing-rm-appload-armv7.zip` (32-bit build, currently untested)
 
 2. **Extract and Copy Files**
    
