@@ -15,7 +15,7 @@ use crate::architecture::detect_architecture;
 use crate::archive;
 use crate::config::Config;
 use crate::filesystem;
-use crate::types::MonitorError;
+use crate::types::{DownloadProgress, DownloadProgressSender, MonitorError};
 
 const RELEASE_API_URL: &str = "https://api.github.com/repos/syncthing/syncthing/releases/latest";
 const TAR_EXTENSION: &str = ".tar.gz";
@@ -24,6 +24,7 @@ const GITHUB_ACCEPT_HEADER: &str = "application/vnd.github+json";
 const GITHUB_API_VERSION_HEADER: &str = "x-github-api-version";
 const GITHUB_API_VERSION: &str = "2022-11-28";
 const REQUEST_TIMEOUT_SECS: u64 = 60;
+const DOWNLOAD_TIMEOUT_SECS: u64 = 10 * 60;
 
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct InstallerStatus {
@@ -35,6 +36,7 @@ pub struct InstallerStatus {
     pub installer_disabled: bool,
 }
 
+#[derive(Clone)]
 pub struct Installer {
     config: Config,
     client: Client,
@@ -87,12 +89,20 @@ impl Installer {
         }
     }
 
-    pub async fn download_latest_binary(&self) -> Result<(), MonitorError> {
+    pub async fn download_latest_binary(
+        &self,
+        progress_tx: Option<DownloadProgressSender>,
+    ) -> Result<(), MonitorError> {
         let asset = self.fetch_latest_asset().await?;
         let app_root = Config::app_root_dir()?;
         let tarball_path = app_root.join(&asset.name);
-        self.download_asset(&asset.browser_download_url, &tarball_path)
-            .await?;
+        self.download_asset(
+            &asset.browser_download_url,
+            &tarball_path,
+            progress_tx,
+            asset.size,
+        )
+        .await?;
         self.extract_binary(&tarball_path).await?;
         let _ = fs::remove_file(&tarball_path).await;
         Ok(())
@@ -114,18 +124,45 @@ impl Installer {
         self.config.syncthing_binary_path()
     }
 
-    async fn download_asset(&self, url: &str, destination: &Path) -> Result<(), MonitorError> {
+    async fn download_asset(
+        &self,
+        url: &str,
+        destination: &Path,
+        progress_tx: Option<DownloadProgressSender>,
+        total_size: Option<u64>,
+    ) -> Result<(), MonitorError> {
         let mut response = self
             .client
             .get(url)
+            .timeout(Duration::from_secs(DOWNLOAD_TIMEOUT_SECS))
             .send()
             .await?
             .error_for_status()
             .map_err(|err| MonitorError::Http(err))?;
 
         let mut file = File::create(destination).await?;
+        let mut downloaded_bytes: u64 = 0;
+
+        if let Some(progress_tx) = &progress_tx {
+            let _ = progress_tx
+                .send(DownloadProgress {
+                    downloaded_bytes,
+                    total_bytes: total_size,
+                })
+                .await;
+        }
+
         while let Some(chunk) = response.chunk().await? {
             file.write_all(&chunk).await?;
+            downloaded_bytes = downloaded_bytes.saturating_add(chunk.len() as u64);
+            if let Some(progress_tx) = &progress_tx {
+                let _ = progress_tx
+                    .send(DownloadProgress {
+                        downloaded_bytes,
+                        total_bytes: total_size,
+                    })
+                    .await;
+            }
         }
         file.flush().await?;
         Ok(())
@@ -236,6 +273,7 @@ struct Release {
 struct ReleaseAsset {
     name: String,
     browser_download_url: String,
+    size: Option<u64>,
 }
 
 async fn run_command(command: &str, args: &[&str]) -> Result<(), MonitorError> {

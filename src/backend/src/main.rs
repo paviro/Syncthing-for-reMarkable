@@ -8,12 +8,14 @@ mod syncthing_client;
 mod systemd;
 mod types;
 mod updater;
+mod utils;
 use appload_client::{
     AppLoad, AppLoadBackend, BackendReplier, Message, MSG_SYSTEM_NEW_COORDINATOR,
 };
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration, Instant};
 use tracing::{error, warn};
@@ -23,8 +25,9 @@ use crate::config::Config;
 use crate::installer::{Installer, InstallerStatus};
 use crate::syncthing_client::SyncthingClient;
 use crate::systemd::{control_syncthing_service, query_systemd_status};
-use crate::types::{MonitorError, SystemdStatus};
+use crate::types::{DownloadProgress, MonitorError, SystemdStatus};
 use crate::updater::{UpdateStatus, Updater};
+use crate::utils::format_bytes;
 
 const MSG_CONTROL_REQUEST: u32 = 2;
 const MSG_INSTALL_TRIGGER: u32 = 3;
@@ -46,6 +49,7 @@ const EVENT_STREAM_TIMEOUT_SECS: u64 = 30;
 const EVENT_HEARTBEAT_SECS: u64 = 5;
 const EVENT_RECONNECT_DELAY_SECS: u64 = 5;
 const SYSTEMD_MONITOR_INTERVAL_SECS: u64 = 5;
+const DOWNLOAD_PROGRESS_BYTE_STEP: u64 = 512 * 1024;
 
 #[tokio::main]
 async fn main() {
@@ -138,6 +142,50 @@ fn task_is_running(handle: &Option<JoinHandle<()>>) -> bool {
         .as_ref()
         .map(|handle| !handle.is_finished())
         .unwrap_or(false)
+}
+
+fn render_download_progress_message(prefix: &str, progress: &DownloadProgress) -> String {
+    match progress.total_bytes {
+        Some(total) => {
+            let percent = progress.percent().unwrap_or(0);
+            format!(
+                "{} ({} / {} - {}%)...",
+                prefix,
+                format_bytes(progress.downloaded_bytes),
+                format_bytes(total),
+                percent
+            )
+        }
+        None => format!(
+            "{} ({} downloaded)...",
+            prefix,
+            format_bytes(progress.downloaded_bytes)
+        ),
+    }
+}
+
+fn should_emit_download_progress(
+    progress: &DownloadProgress,
+    last_percent: &mut Option<u8>,
+    last_bytes: &mut u64,
+) -> bool {
+    if let Some(percent) = progress.percent() {
+        if last_percent.map(|prev| percent > prev).unwrap_or(true) {
+            *last_percent = Some(percent);
+            true
+        } else {
+            false
+        }
+    } else if progress
+        .downloaded_bytes
+        .saturating_sub(*last_bytes)
+        >= DOWNLOAD_PROGRESS_BYTE_STEP
+    {
+        *last_bytes = progress.downloaded_bytes;
+        true
+    } else {
+        false
+    }
 }
 
 #[async_trait]
@@ -349,9 +397,41 @@ impl SyncthingBackend {
             self.install_progress_message =
                 Some("Downloading latest Syncthing release...".to_string());
             self.send_install_status(functionality).await;
-            if let Err(err) = self.installer.download_latest_binary().await {
-                self.finish_installer_with_error(err, functionality).await;
-                return;
+            let (progress_tx, mut progress_rx) = mpsc::channel(16);
+            let installer = self.installer.clone();
+            let mut download_future =
+                Box::pin(installer.download_latest_binary(Some(progress_tx)));
+            let mut download_result: Option<Result<(), MonitorError>> = None;
+            let mut channel_open = true;
+            let mut last_percent_reported: Option<u8> = None;
+            let mut last_bytes_reported: u64 = 0;
+
+            while download_result.is_none() || channel_open {
+                tokio::select! {
+                    result = &mut download_future, if download_result.is_none() => {
+                        download_result = Some(result);
+                    }
+                    progress = progress_rx.recv(), if channel_open => {
+                        match progress {
+                            Some(progress) => {
+                                if should_emit_download_progress(&progress, &mut last_percent_reported, &mut last_bytes_reported) {
+                                    self.install_progress_message =
+                                        Some(render_download_progress_message("Downloading latest Syncthing release", &progress));
+                                    self.send_install_status(functionality).await;
+                                }
+                            }
+                            None => channel_open = false,
+                        }
+                    }
+                }
+            }
+
+            match download_result.unwrap() {
+                Ok(()) => {}
+                Err(err) => {
+                    self.finish_installer_with_error(err, functionality).await;
+                    return;
+                }
             }
         }
 
@@ -453,7 +533,46 @@ impl SyncthingBackend {
         self.update_restart_seconds_remaining = None;
         self.send_update_status(functionality).await;
 
-        match self.updater.download_and_apply_update(&download_url).await {
+        let (progress_tx, mut progress_rx) = mpsc::channel(16);
+        let updater = self.updater.clone();
+        let mut update_future = Box::pin(
+            updater.download_and_apply_update(&download_url, Some(progress_tx)),
+        );
+        let mut update_result: Option<Result<(), MonitorError>> = None;
+        let mut channel_open = true;
+        let mut download_phase_reported_complete = false;
+        let mut last_percent_reported: Option<u8> = None;
+        let mut last_bytes_reported: u64 = 0;
+
+        while update_result.is_none() || channel_open {
+            tokio::select! {
+                result = &mut update_future, if update_result.is_none() => {
+                    update_result = Some(result);
+                }
+                progress = progress_rx.recv(), if channel_open => {
+                    match progress {
+                        Some(progress) => {
+                            if should_emit_download_progress(&progress, &mut last_percent_reported, &mut last_bytes_reported) {
+                                self.update_progress_message =
+                                    Some(render_download_progress_message("Downloading update", &progress));
+                                self.send_update_status(functionality).await;
+                            }
+                        }
+                        None => {
+                            channel_open = false;
+                            if !download_phase_reported_complete && update_result.is_none() {
+                                download_phase_reported_complete = true;
+                                self.update_progress_message =
+                                    Some("Installing update files...".to_string());
+                                self.send_update_status(functionality).await;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        match update_result.unwrap() {
             Ok(()) => {
                 self.begin_restart_countdown(functionality).await;
             }

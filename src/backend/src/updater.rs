@@ -11,7 +11,7 @@ use tracing::info;
 use crate::architecture::{detect_architecture, Architecture};
 use crate::archive;
 use crate::config::Config;
-use crate::types::MonitorError;
+use crate::types::{DownloadProgress, DownloadProgressSender, MonitorError};
 
 const RELEASE_API_URL: &str =
     "https://api.github.com/repos/paviro/Syncthing-for-reMarkable/releases/latest";
@@ -39,6 +39,7 @@ pub struct UpdateStatus {
     pub restart_seconds_remaining: Option<u32>,
 }
 
+#[derive(Clone)]
 pub struct Updater {
     client: Client,
 }
@@ -131,7 +132,11 @@ impl Updater {
     }
 
     /// Download and apply an update
-    pub async fn download_and_apply_update(&self, download_url: &str) -> Result<(), MonitorError> {
+    pub async fn download_and_apply_update(
+        &self,
+        download_url: &str,
+        progress_tx: Option<DownloadProgressSender>,
+    ) -> Result<(), MonitorError> {
         // Create a temporary directory for extraction
         let temp_dir = TempDir::new().map_err(|err| {
             MonitorError::Config(format!("Failed to create temporary directory: {}", err))
@@ -139,7 +144,7 @@ impl Updater {
 
         // Download the zip file
         let zip_path = temp_dir.path().join("update.zip");
-        self.download_file(download_url, &zip_path).await?;
+        self.download_file(download_url, &zip_path, progress_tx).await?;
 
         // Extract to temporary directory
         let extract_dir = temp_dir.path().join("extracted");
@@ -153,7 +158,12 @@ impl Updater {
         Ok(())
     }
 
-    async fn download_file(&self, url: &str, destination: &Path) -> Result<(), MonitorError> {
+    async fn download_file(
+        &self,
+        url: &str,
+        destination: &Path,
+        progress_tx: Option<DownloadProgressSender>,
+    ) -> Result<(), MonitorError> {
         let mut response = self
             .client
             .get(url)
@@ -163,8 +173,29 @@ impl Updater {
             .map_err(|err| MonitorError::Http(err))?;
 
         let mut file = tokio::fs::File::create(destination).await?;
+        let total_bytes = response.content_length();
+        let mut downloaded_bytes: u64 = 0;
+
+        if let Some(progress_tx) = &progress_tx {
+            let _ = progress_tx
+                .send(DownloadProgress {
+                    downloaded_bytes,
+                    total_bytes,
+                })
+                .await;
+        }
+
         while let Some(chunk) = response.chunk().await? {
             file.write_all(&chunk).await?;
+            downloaded_bytes = downloaded_bytes.saturating_add(chunk.len() as u64);
+            if let Some(progress_tx) = &progress_tx {
+                let _ = progress_tx
+                    .send(DownloadProgress {
+                        downloaded_bytes,
+                        total_bytes,
+                    })
+                    .await;
+            }
         }
         file.flush().await?;
         Ok(())
