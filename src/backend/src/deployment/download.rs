@@ -9,20 +9,16 @@ use tokio::io::AsyncWriteExt;
 use crate::deployment::{DownloadProgress, DownloadProgressSender};
 use crate::types::MonitorError;
 
-pub const DOWNLOAD_TIMEOUT_SECS: u64 = 10 * 60;
-pub const DEFAULT_USER_AGENT: &str = "syncthing-for-remarkable-appload";
+const DOWNLOAD_TIMEOUT_SECS: u64 = 10 * 60;
 
 pub async fn download_to_path(
     client: &Client,
     url: &str,
     destination: &Path,
     progress_tx: Option<DownloadProgressSender>,
-    timeout: Option<Duration>,
 ) -> Result<(), MonitorError> {
-    let mut request = client.get(url);
-    if let Some(timeout) = timeout {
-        request = request.timeout(timeout);
-    }
+    let timeout = Duration::from_secs(DOWNLOAD_TIMEOUT_SECS);
+    let mut request = client.get(url).timeout(timeout);
 
     let mut response = request.send().await?.error_for_status()?;
     let mut file = File::create(destination).await?;

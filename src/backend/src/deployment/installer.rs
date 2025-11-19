@@ -1,7 +1,6 @@
 //! Installer for Syncthing binaries and systemd service setup.
 
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 use reqwest::Client;
 use tokio::fs;
@@ -13,7 +12,7 @@ use crate::archive;
 use crate::config::Config;
 use crate::deployment::assets::{self, ReleaseAsset};
 use crate::deployment::client::{default_request_timeout, github_client};
-use crate::deployment::download::{download_to_path, DEFAULT_USER_AGENT, DOWNLOAD_TIMEOUT_SECS};
+use crate::deployment::download::download_to_path;
 use crate::deployment::system::run_command;
 use crate::deployment::DownloadProgressSender;
 use crate::filesystem;
@@ -30,7 +29,7 @@ pub struct Installer {
 
 impl Installer {
     pub fn new(config: Config) -> Self {
-        let client = github_client(DEFAULT_USER_AGENT, default_request_timeout())
+        let client = github_client(default_request_timeout())
             .expect("Failed to construct HTTP client for installer");
         Self { config, client }
     }
@@ -72,7 +71,6 @@ impl Installer {
             &asset.browser_download_url,
             &tarball_path,
             progress_tx,
-            Some(Duration::from_secs(DOWNLOAD_TIMEOUT_SECS)),
         )
         .await?;
 

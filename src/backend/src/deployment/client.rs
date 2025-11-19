@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use crate::types::MonitorError;
 
+const USER_AGENT: &str = "syncthing-for-remarkable-appload";
 pub const GITHUB_ACCEPT_HEADER: &str = "application/vnd.github+json";
 pub const GITHUB_API_VERSION_HEADER: &str = "x-github-api-version";
 pub const GITHUB_API_VERSION: &str = "2022-11-28";
@@ -21,9 +22,9 @@ pub fn default_github_headers() -> HeaderMap {
     headers
 }
 
-pub fn github_client(user_agent: &str, timeout: Duration) -> Result<Client, MonitorError> {
+pub fn github_client(timeout: Duration) -> Result<Client, MonitorError> {
     Client::builder()
-        .user_agent(user_agent)
+        .user_agent(USER_AGENT)
         .default_headers(default_github_headers())
         .timeout(timeout)
         .build()

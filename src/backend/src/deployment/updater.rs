@@ -13,7 +13,7 @@ use crate::archive;
 use crate::config::Config;
 use crate::deployment::assets;
 use crate::deployment::client::{default_request_timeout, github_client};
-use crate::deployment::download::{download_to_path, DEFAULT_USER_AGENT};
+use crate::deployment::download::download_to_path;
 use crate::deployment::{DownloadProgressSender, UpdateCheckResult};
 use crate::types::MonitorError;
 
@@ -27,7 +27,7 @@ pub struct Updater {
 
 impl Updater {
     pub fn new() -> Self {
-        let client = github_client(DEFAULT_USER_AGENT, default_request_timeout())
+        let client = github_client(default_request_timeout())
             .expect("Failed to construct HTTP client for updater");
         Self { client }
     }
@@ -103,7 +103,7 @@ impl Updater {
         })?;
 
         let zip_path = temp_dir.path().join("update.zip");
-        download_to_path(&self.client, download_url, &zip_path, progress_tx, None).await?;
+        download_to_path(&self.client, download_url, &zip_path, progress_tx).await?;
 
         let extract_dir = temp_dir.path().join("extracted");
         fs::create_dir_all(&extract_dir).await?;
