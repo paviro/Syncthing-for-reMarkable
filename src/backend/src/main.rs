@@ -1,6 +1,6 @@
 mod config;
 mod deployment;
-mod status_report;
+mod status_builder;
 mod syncthing_client;
 mod systemd;
 mod types;
@@ -114,7 +114,7 @@ impl SyncthingBackend {
 
     async fn send_status(&mut self, functionality: &BackendReplier<Self>, reason: &str) {
         let snapshot =
-            status_report::build_status_payload(&self.config, &mut self.client, reason).await;
+            status_builder::build_status_payload(&self.config, &mut self.client, reason).await;
         match serde_json::to_string(&snapshot) {
             Ok(payload) => {
                 if let Err(err) = functionality.send_message(MSG_STATUS_UPDATE, &payload) {

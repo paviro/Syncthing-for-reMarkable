@@ -6,6 +6,12 @@ use crate::syncthing_client::SyncthingClient;
 use crate::systemd::query_status;
 use crate::types::{MonitorError, StatusPayload, SyncthingOverview};
 
+/// Builds a complete status payload by aggregating data from multiple sources.
+///
+/// This orchestrates:
+/// - SystemD service status
+/// - Syncthing client initialization and data collection
+/// - Error handling and fallback values
 pub async fn build_status_payload(
     config: &Config,
     client_slot: &mut Option<SyncthingClient>,
@@ -50,6 +56,7 @@ pub async fn build_status_payload(
     }
 }
 
+/// Ensures the Syncthing client is initialized, creating it if necessary.
 async fn ensure_client<'a>(
     config: &Config,
     client_slot: &'a mut Option<SyncthingClient>,
@@ -59,3 +66,4 @@ async fn ensure_client<'a>(
     }
     Ok(client_slot.as_mut().expect("client was just initialized"))
 }
+

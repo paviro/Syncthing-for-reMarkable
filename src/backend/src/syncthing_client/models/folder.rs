@@ -1,22 +1,9 @@
 use serde::Serialize;
 use serde_json::Value;
 
-use super::api_types::{FolderConfig, RemoteCompletion};
+use crate::syncthing_client::api::FolderConfig;
 
-#[derive(Debug, Serialize, Default)]
-pub struct SyncthingOverview {
-    pub available: bool,
-    pub my_id: Option<String>,
-    pub version: Option<String>,
-    pub state: Option<String>,
-    pub health: Option<String>,
-    pub started_at: Option<String>,
-    pub uptime_seconds: Option<f64>,
-    pub sequence: Option<u64>,
-    pub goroutine_count: Option<u64>,
-    pub errors: Vec<String>,
-}
-
+/// Represents the current state of a folder in a human-readable format.
 #[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum FolderStateCode {
@@ -38,6 +25,7 @@ impl Default for FolderStateCode {
     }
 }
 
+/// Complete folder information for UI display.
 #[derive(Debug, Serialize)]
 pub struct FolderPayload {
     pub id: String,
@@ -56,6 +44,7 @@ pub struct FolderPayload {
     pub peers_need_summary: Option<FolderPeerNeedSummary>,
 }
 
+/// Represents a recent file change in a folder.
 #[derive(Debug, Serialize, Clone, Default)]
 pub struct FolderChange {
     pub name: String,
@@ -64,139 +53,17 @@ pub struct FolderChange {
     pub origin: Option<String>,
 }
 
+/// Summary of how many peers need data from this folder.
 #[derive(Debug, Serialize, Clone, Copy, Default)]
 pub struct FolderPeerNeedSummary {
     pub peer_count: u32,
     pub need_bytes: u64,
 }
 
-#[derive(Debug, Serialize, Clone, Default)]
-pub struct PeerFolderState {
-    pub folder_id: String,
-    pub folder_label: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub completion: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub need_bytes: Option<u64>,
-}
-
-#[derive(Debug, Serialize, Clone, Default)]
-pub struct PeerPayload {
-    pub id: String,
-    pub name: String,
-    pub connected: bool,
-    pub paused: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub address: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_version: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_seen: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub completion: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub need_bytes: Option<u64>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub folders: Vec<PeerFolderState>,
-}
-
-#[derive(Default, Clone)]
-pub struct PeerProgress {
-    pub total_completion: f64,
-    pub completion_samples: u32,
-    pub total_need_bytes: u64,
-    pub folders: Vec<PeerFolderState>,
-}
-
+/// Helper struct to construct human-readable state labels.
 pub struct FolderStateInfo {
     pub label: String,
     pub code: FolderStateCode,
-}
-
-impl SyncthingOverview {
-    pub fn from_value(value: &Value) -> Self {
-        Self {
-            available: true,
-            my_id: value
-                .get("myID")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string()),
-            version: value
-                .get("version")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string()),
-            state: value
-                .get("state")
-                .or_else(|| value.get("status"))
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string()),
-            health: value
-                .get("health")
-                .or_else(|| value.get("status"))
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string()),
-            started_at: value
-                .get("startTime")
-                .or_else(|| value.get("startedAt"))
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string()),
-            uptime_seconds: value.get("uptime").and_then(|v| v.as_f64()),
-            sequence: value
-                .get("sequence")
-                .or_else(|| value.get("dbSequence"))
-                .and_then(|v| v.as_u64()),
-            goroutine_count: value.get("goroutineCount").and_then(|v| v.as_u64()),
-            errors: Vec::new(),
-        }
-    }
-
-    pub fn error(message: String) -> Self {
-        Self {
-            errors: vec![message],
-            ..Default::default()
-        }
-    }
-}
-
-impl PeerProgress {
-    pub fn record(&mut self, folder: &FolderConfig, completion: &RemoteCompletion) {
-        if let Some(value) = completion.completion {
-            self.total_completion += value;
-            self.completion_samples = self.completion_samples.saturating_add(1);
-        }
-        if let Some(need) = completion.need_bytes {
-            self.total_need_bytes = self.total_need_bytes.saturating_add(need);
-        }
-        self.folders.push(PeerFolderState {
-            folder_id: folder.id.clone(),
-            folder_label: folder.label.clone().unwrap_or_else(|| folder.id.clone()),
-            completion: completion.completion,
-            need_bytes: completion.need_bytes,
-        });
-    }
-
-    pub fn avg_completion(&self) -> Option<f64> {
-        if self.completion_samples == 0 {
-            None
-        } else {
-            let mut average = self.total_completion / self.completion_samples as f64;
-            if self.total_need_bytes > 0 && average > 99.99 {
-                average = 99.99;
-            }
-            if average > 100.0 {
-                average = 100.0;
-            }
-            Some(average)
-        }
-    }
-
-    pub fn outstanding_need(&self) -> Option<u64> {
-        if self.total_need_bytes > 0 {
-            Some(self.total_need_bytes)
-        } else {
-            None
-        }
-    }
 }
 
 impl FolderStateInfo {
@@ -244,6 +111,7 @@ impl FolderPayload {
     }
 }
 
+/// Calculates folder completion percentage based on global and needed bytes.
 fn compute_completion(global_bytes: Option<u64>, need_bytes: Option<u64>) -> f64 {
     match (global_bytes, need_bytes) {
         (Some(global), Some(need)) if global > 0 => {
@@ -255,6 +123,7 @@ fn compute_completion(global_bytes: Option<u64>, need_bytes: Option<u64>) -> f64
     }
 }
 
+/// Converts raw folder state into a human-readable label and code.
 fn humanize_folder_state(
     paused: bool,
     state: Option<&str>,

@@ -1,8 +1,8 @@
-mod api_types;
+mod api;
 mod client;
+mod core;
 mod helpers;
-mod model;
-mod queries;
+mod models;
 
 pub use client::SyncthingClient;
-pub use model::{FolderPayload, PeerPayload, SyncthingOverview};
+pub use models::{FolderPayload, PeerPayload, SyncthingOverview};
