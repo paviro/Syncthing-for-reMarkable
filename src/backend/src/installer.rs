@@ -11,12 +11,12 @@ use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 
+use crate::architecture::detect_architecture;
 use crate::config::Config;
 use crate::filesystem;
 use crate::types::MonitorError;
 
 const RELEASE_API_URL: &str = "https://api.github.com/repos/syncthing/syncthing/releases/latest";
-const TARGET_ASSET_PREFIX: &str = "syncthing-linux-arm64-";
 const TAR_EXTENSION: &str = ".tar.gz";
 const INSTALLER_USER_AGENT: &str = "remarkable-syncthing-installer";
 
@@ -165,6 +165,8 @@ impl Installer {
     }
 
     async fn fetch_latest_asset(&self) -> Result<ReleaseAsset, MonitorError> {
+        let architecture = detect_architecture().await?;
+        let asset_prefix = architecture.syncthing_asset_prefix();
         let response = self
             .client
             .get(RELEASE_API_URL)
@@ -177,12 +179,14 @@ impl Installer {
             .assets
             .into_iter()
             .find(|asset| {
-                asset.name.starts_with(TARGET_ASSET_PREFIX) && asset.name.ends_with(TAR_EXTENSION)
+                asset.name.starts_with(asset_prefix) && asset.name.ends_with(TAR_EXTENSION)
             })
             .ok_or_else(|| {
                 MonitorError::Config(
-                    "Latest Syncthing release does not contain the expected arm64 asset"
-                        .to_string(),
+                    format!(
+                        "Latest Syncthing release does not contain the expected {} asset",
+                        architecture.description()
+                    ),
                 )
             })
     }

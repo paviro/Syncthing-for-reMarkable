@@ -1,3 +1,4 @@
+mod architecture;
 mod config;
 mod filesystem;
 mod installer;
