@@ -26,12 +26,12 @@ use crate::syncthing_client::SyncthingClient;
 use crate::systemd::{control_service, ServiceAction};
 use crate::types::MonitorError;
 
-const MSG_CONTROL_REQUEST: u32 = 2;
-const MSG_INSTALL_TRIGGER: u32 = 3;
-const MSG_GUI_ADDRESS_TOGGLE: u32 = 4;
-const MSG_UPDATE_CHECK_REQUEST: u32 = 5;
-const MSG_UPDATE_DOWNLOAD_REQUEST: u32 = 6;
-const MSG_UPDATE_RESTART_REQUEST: u32 = 7;
+const MSG_CONTROL_REQUEST: u32 = 1;
+const MSG_INSTALL_TRIGGER: u32 = 2;
+const MSG_GUI_ADDRESS_TOGGLE: u32 = 3;
+const MSG_UPDATE_CHECK_REQUEST: u32 = 4;
+const MSG_UPDATE_DOWNLOAD_REQUEST: u32 = 5;
+const MSG_UPDATE_RESTART_REQUEST: u32 = 6;
 
 const MSG_STATUS_UPDATE: u32 = 100;
 const MSG_CONTROL_RESULT: u32 = 101;

@@ -11,21 +11,17 @@ use tracing::warn;
 use crate::config::Config;
 use crate::types::MonitorError;
 
-use super::types::{
-    FolderChange, FolderPayload, FolderPeerNeedSummary, PeerPayload, SyncthingOverview,
+use super::api_types::{
+    ConnectionsResponse, DeviceConfig, FolderConfig, RemoteCompletion, SyncthingConfig,
+    SyncthingEvent,
 };
-
 use super::helpers::{
-    compute_completion, format_relative_time, humanize_folder_state, is_file_event, load_api_key,
-    RECENT_EVENTS_LIMIT,
+    format_relative_time, is_file_event, load_api_key, RECENT_EVENTS_LIMIT,
+};
+use super::model::{
+    FolderChange, FolderPayload, FolderPeerNeedSummary, PeerPayload, PeerProgress, SyncthingOverview,
 };
 use super::queries::{CompletionQuery, EventStreamQuery, EventsQuery, FolderStatusQuery};
-use super::types::{
-    ConnectionsResponse, DeviceConfig, FolderConfig, PeerProgress, RemoteCompletion,
-    SyncthingConfig, SyncthingEvent,
-};
-
-const RECENT_FILES_PER_FOLDER: usize = 4;
 
 #[derive(Clone)]
 pub struct SyncthingClient {
@@ -35,18 +31,21 @@ pub struct SyncthingClient {
     current_idx: usize,
 }
 
+/// Aggregated Syncthing data payload consumed by the UI.
 pub struct SyncthingData {
     pub overview: SyncthingOverview,
     pub folders: Vec<FolderPayload>,
     pub peers: Vec<PeerPayload>,
 }
 
+/// Result from long-polling the Syncthing event stream.
 pub struct EventWaitResult {
     pub last_event_id: u64,
     pub has_updates: bool,
 }
 
 impl SyncthingClient {
+    /// Discover a Syncthing instance using config/env and prepare an HTTP client.
     pub async fn discover(config: &Config) -> Result<Self, MonitorError> {
         let api_key = load_api_key(config).await?;
         let mut base_urls = Vec::new();
@@ -76,13 +75,14 @@ impl SyncthingClient {
         })
     }
 
+    /// Compose the full payload required by the UI.
+    /// - Fetches system status, config, recent changes and peer metrics
+    /// - Builds folder and peer payloads ready for rendering
     pub async fn compose_payload(&mut self) -> Result<SyncthingData, MonitorError> {
         let status_value: Value = self.get_json("/rest/system/status").await?;
         let config: SyncthingConfig = self.get_json("/rest/config").await?;
         let folder_ids: HashSet<String> = config.folders.iter().map(|f| f.id.clone()).collect();
-        let recent = self
-            .recent_folder_changes(&folder_ids, RECENT_FILES_PER_FOLDER)
-            .await?;
+        let latest_changes = self.latest_folder_changes(&folder_ids).await?;
         let mut folders = Vec::new();
 
         let connections = match self.fetch_connections().await {
@@ -105,7 +105,12 @@ impl SyncthingClient {
                 folder: folder.id.as_str(),
             };
             let status: Value = self.get_json_with_query("/rest/db/status", &query).await?;
-            let last_changes = recent.get(&folder.id).cloned().unwrap_or_default();
+            // Keep UI contract: a Vec, but only ever include the latest (0..1)
+            let last_changes = latest_changes
+                .get(&folder.id)
+                .cloned()
+                .into_iter()
+                .collect::<Vec<_>>();
             let peer_need_summary = folder_peer_summaries.get(&folder.id).copied();
             folders.push(FolderPayload::from_parts(
                 folder,
@@ -156,11 +161,11 @@ impl SyncthingClient {
         })
     }
 
-    async fn recent_folder_changes(
+    /// Collect the latest changed file per folder (if any), considering only file-related events.
+    async fn latest_folder_changes(
         &mut self,
         allowed: &HashSet<String>,
-        _per_folder: usize,
-    ) -> Result<HashMap<String, Vec<FolderChange>>, MonitorError> {
+    ) -> Result<HashMap<String, FolderChange>, MonitorError> {
         if allowed.is_empty() {
             return Ok(HashMap::new());
         }
@@ -173,7 +178,7 @@ impl SyncthingClient {
             self.get_json_with_query("/rest/events", &query).await?;
         events.sort_by(|a, b| b.id.cmp(&a.id));
 
-        let mut changes: HashMap<String, Vec<FolderChange>> = HashMap::new();
+        let mut changes: HashMap<String, FolderChange> = HashMap::new();
         for event in events {
             if !is_file_event(&event.event_type) {
                 continue;
@@ -184,17 +189,20 @@ impl SyncthingClient {
             if !allowed.contains(folder_id) {
                 continue;
             }
+            // If we already recorded the latest change for this folder, skip
+            if changes.contains_key(folder_id) {
+                continue;
+            }
             if let Some(file_name) = event.file_name() {
-                let entry = changes.entry(folder_id.to_string()).or_default();
-                if !entry.is_empty() {
-                    continue;
-                }
-                entry.push(FolderChange {
-                    name: file_name,
-                    action: event.action().unwrap_or_else(|| event.event_type.clone()),
-                    when: format_relative_time(&event.time),
-                    origin: event.origin(),
-                });
+                changes.insert(
+                    folder_id.to_string(),
+                    FolderChange {
+                        name: file_name,
+                        action: event.action().unwrap_or_else(|| event.event_type.clone()),
+                        when: format_relative_time(&event.time),
+                        origin: event.origin(),
+                    },
+                );
             }
         }
 
@@ -362,6 +370,7 @@ impl SyncthingClient {
         response.json::<T>().await.map_err(MonitorError::Http)
     }
 
+    /// Fetch GUI address from Syncthing config.
     pub async fn get_gui_address(&mut self) -> Result<String, MonitorError> {
         let config: Value = self.get_json("/rest/config").await?;
         let address = config
@@ -374,6 +383,7 @@ impl SyncthingClient {
         Ok(address.to_string())
     }
 
+    /// Update GUI address in Syncthing config.
     pub async fn set_gui_address(&mut self, new_address: &str) -> Result<(), MonitorError> {
         // Get current config
         let mut config: Value = self.get_json("/rest/config").await?;
@@ -418,85 +428,3 @@ fn push_unique_url(list: &mut Vec<String>, candidate: String) {
         list.push(candidate);
     }
 }
-
-impl SyncthingOverview {
-    pub(crate) fn from_value(value: &Value) -> Self {
-        Self {
-            available: true,
-            my_id: value
-                .get("myID")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string()),
-            version: value
-                .get("version")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string()),
-            state: value
-                .get("state")
-                .or_else(|| value.get("status"))
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string()),
-            health: value
-                .get("health")
-                .or_else(|| value.get("status"))
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string()),
-            started_at: value
-                .get("startTime")
-                .or_else(|| value.get("startedAt"))
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string()),
-            uptime_seconds: value.get("uptime").and_then(|v| v.as_f64()),
-            sequence: value
-                .get("sequence")
-                .or_else(|| value.get("dbSequence"))
-                .and_then(|v| v.as_u64()),
-            goroutine_count: value.get("goroutineCount").and_then(|v| v.as_u64()),
-            errors: Vec::new(),
-        }
-    }
-
-    pub(crate) fn error(message: String) -> Self {
-        Self {
-            errors: vec![message],
-            ..Default::default()
-        }
-    }
-}
-
-impl FolderPayload {
-    pub fn from_parts(
-        folder: &FolderConfig,
-        status: &Value,
-        last_changes: Vec<FolderChange>,
-        peers_need_summary: Option<FolderPeerNeedSummary>,
-    ) -> Self {
-        let global_bytes = status.get("globalBytes").and_then(|v| v.as_u64());
-        let need_bytes = status.get("needBytes").and_then(|v| v.as_u64());
-        let in_sync_bytes = status.get("inSyncBytes").and_then(|v| v.as_u64());
-        let completion = compute_completion(global_bytes, need_bytes);
-        let state_raw = status
-            .get("state")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-        let paused = folder.paused.unwrap_or(false);
-        let state_info = humanize_folder_state(paused, state_raw.as_deref(), need_bytes);
-
-        Self {
-            id: folder.id.clone(),
-            label: folder.label.clone().unwrap_or_else(|| folder.id.clone()),
-            path: folder.path.clone(),
-            state: state_info.label,
-            state_code: state_info.code,
-            state_raw,
-            paused,
-            global_bytes,
-            in_sync_bytes,
-            need_bytes,
-            completion,
-            last_changes,
-            peers_need_summary,
-        }
-    }
-}
-

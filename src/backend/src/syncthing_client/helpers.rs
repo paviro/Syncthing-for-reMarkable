@@ -5,8 +5,6 @@ use tokio::fs;
 use crate::config::Config;
 use crate::types::MonitorError;
 
-use super::types::{FolderStateCode, FolderStateInfo};
-
 pub const RECENT_EVENTS_LIMIT: u32 = 200;
 
 pub fn is_file_event(event_type: &str) -> bool {
@@ -20,62 +18,6 @@ pub fn is_file_event(event_type: &str) -> bool {
             | "FolderSummary"
             | "FolderCompletion"
     )
-}
-
-pub fn compute_completion(global_bytes: Option<u64>, need_bytes: Option<u64>) -> f64 {
-    match (global_bytes, need_bytes) {
-        (Some(global), Some(need)) if global > 0 => {
-            let complete = global.saturating_sub(need);
-            ((complete as f64 / global as f64) * 100.0).clamp(0.0, 100.0)
-        }
-        (Some(global), None) if global > 0 => 100.0,
-        _ => 0.0,
-    }
-}
-
-pub fn humanize_folder_state(
-    paused: bool,
-    state: Option<&str>,
-    need_bytes: Option<u64>,
-) -> FolderStateInfo {
-    if paused {
-        return FolderStateInfo::new("Paused", FolderStateCode::Paused);
-    }
-
-    if let Some(state_value) = state {
-        let normalized = state_value.to_ascii_lowercase();
-        if normalized.contains("waiting") && normalized.contains("scan") {
-            return FolderStateInfo::new("Waiting to scan", FolderStateCode::WaitingToScan);
-        }
-        if normalized.contains("waiting") && normalized.contains("sync") {
-            return FolderStateInfo::new("Waiting to sync", FolderStateCode::WaitingToSync);
-        }
-        if normalized.contains("preparing") && normalized.contains("sync") {
-            return FolderStateInfo::new("Preparing to sync", FolderStateCode::PreparingToSync);
-        }
-
-        if state_value.eq_ignore_ascii_case("scanning") {
-            return FolderStateInfo::new("Scanning", FolderStateCode::Scanning);
-        }
-        if state_value.eq_ignore_ascii_case("syncing") {
-            return FolderStateInfo::new("Syncing", FolderStateCode::Syncing);
-        }
-        if state_value.eq_ignore_ascii_case("idle") {
-            if need_bytes.unwrap_or(0) == 0 {
-                return FolderStateInfo::new("Up to date", FolderStateCode::UpToDate);
-            }
-            return FolderStateInfo::new("Idle / pending changes", FolderStateCode::PendingChanges);
-        }
-        if state_value.eq_ignore_ascii_case("error") {
-            return FolderStateInfo::new("Error", FolderStateCode::Error);
-        }
-    }
-
-    if need_bytes.unwrap_or(0) == 0 {
-        FolderStateInfo::new("Up to date", FolderStateCode::UpToDate)
-    } else {
-        FolderStateInfo::new("Unknown state", FolderStateCode::Unknown)
-    }
 }
 
 pub fn format_relative_time(iso_time: &str) -> String {
@@ -119,4 +61,3 @@ fn extract_api_key(contents: &str) -> Option<String> {
     let end = rest.find(end_tag)?;
     Some(rest[..end].trim().to_string())
 }
-
