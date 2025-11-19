@@ -21,10 +21,12 @@ use crate::types::MonitorError;
 const MSG_REFRESH_REQUEST: u32 = 1;
 const MSG_CONTROL_REQUEST: u32 = 2;
 const MSG_INSTALL_TRIGGER: u32 = 3;
+const MSG_GUI_ADDRESS_TOGGLE: u32 = 4;
 
 const MSG_STATUS_UPDATE: u32 = 100;
 const MSG_CONTROL_RESULT: u32 = 101;
 const MSG_INSTALL_STATUS: u32 = 102;
+const MSG_GUI_ADDRESS_RESULT: u32 = 103;
 const MSG_ERROR: u32 = 500;
 
 #[tokio::main]
@@ -147,6 +149,42 @@ impl AppLoadBackend for SyncthingBackend {
                     self.run_installer(functionality).await;
                 }
             }
+            MSG_GUI_ADDRESS_TOGGLE => {
+                match serde_json::from_str::<GuiAddressToggleRequest>(&message.contents) {
+                    Ok(req) => {
+                        if let Some(client) = &mut self.client {
+                            match client.set_gui_address(&req.address).await {
+                                Ok(()) => {
+                                    let payload = json!({
+                                        "ok": true,
+                                        "address": req.address,
+                                        "message": format!("GUI address updated to {}", req.address)
+                                    });
+                                    if let Err(err) = functionality.send_message(MSG_GUI_ADDRESS_RESULT, &payload.to_string()) {
+                                        eprintln!("failed to send GUI address result: {err:?}");
+                                    }
+                                    self.send_status(functionality, "gui-address-change").await;
+                                }
+                                Err(err) => {
+                                    let payload = json!({
+                                        "ok": false,
+                                        "address": req.address,
+                                        "message": format!("Failed to update GUI address: {}", err)
+                                    });
+                                    if let Err(send_err) = functionality.send_message(MSG_GUI_ADDRESS_RESULT, &payload.to_string()) {
+                                        eprintln!("failed to send GUI address error: {send_err:?}");
+                                    }
+                                }
+                            }
+                        } else {
+                            self.send_error(functionality, "Syncthing client not available");
+                        }
+                    }
+                    Err(err) => {
+                        self.send_error(functionality, &format!("Invalid GUI address toggle payload: {err}"))
+                    }
+                }
+            }
             other => {
                 self.send_error(functionality, &format!("Unknown message type {other}"));
             }
@@ -157,6 +195,11 @@ impl AppLoadBackend for SyncthingBackend {
 #[derive(Debug, Deserialize)]
 struct ControlRequest {
     action: ServiceAction,
+}
+
+#[derive(Debug, Deserialize)]
+struct GuiAddressToggleRequest {
+    address: String,
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]

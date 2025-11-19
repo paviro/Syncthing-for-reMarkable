@@ -24,6 +24,7 @@ Rectangle {
     property var installerStatus: null
     property real fontScale: 1.15
     property bool installerPromptDismissed: false
+    property string guiAddress: ""
     onInstallerStatusChanged: {
         if (!installerNeedsAttention()) {
             installerPromptDismissed = false
@@ -45,6 +46,7 @@ Rectangle {
                     syncthingStatus = payload.syncthing || {}
                     folders = payload.folders || []
                     lastUpdated = payload.fetched_at || ""
+                    guiAddress = payload.gui_address || ""
                     if ((syncthingStatus.errors || []).length === 0 && payload.reason === "manual") {
                         statusMessage = "Refreshed"
                     }
@@ -67,6 +69,15 @@ Rectangle {
                 } catch (errInstaller) {
                     statusMessage = `Installer status error: ${errInstaller}`
                 }
+                break
+            case 103:
+                try {
+                    const guiAddressResult = JSON.parse(contents)
+                    statusMessage = guiAddressResult.message || "GUI address updated"
+                } catch (errGuiAddress) {
+                    statusMessage = `GUI address response error: ${errGuiAddress}`
+                }
+                controlBusy = false
                 break
             case 500:
                 try {
@@ -113,6 +124,13 @@ Rectangle {
         if (!installerStatus || installerStatus.in_progress)
             return
         backend.sendMessage(3, JSON.stringify({}))
+    }
+
+    function toggleGuiAddress(address) {
+        if (controlBusy)
+            return
+        controlBusy = true
+        backend.sendMessage(4, JSON.stringify({ address: address }))
     }
 
     Timer {
@@ -191,11 +209,16 @@ Rectangle {
         fontScale: root.fontScale
         serviceStatus: root.serviceStatus
         controlBusy: root.controlBusy
+        guiAddress: root.guiAddress
 
         onCloseRequested: settingsOverlay.hide()
         
         onAutostartToggleRequested: function(enable) {
             controlService(enable ? "enable" : "disable")
+        }
+
+        onGuiAddressToggleRequested: function(address) {
+            toggleGuiAddress(address)
         }
     }
 }

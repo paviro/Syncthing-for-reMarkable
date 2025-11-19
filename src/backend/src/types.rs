@@ -24,6 +24,7 @@ pub struct StatusPayload {
     pub systemd: SystemdStatus,
     pub syncthing: SyncthingOverview,
     pub folders: Vec<FolderPayload>,
+    pub gui_address: Option<String>,
 }
 
 #[derive(Debug, Serialize, Default)]
