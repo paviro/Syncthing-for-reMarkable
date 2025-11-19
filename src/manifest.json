@@ -1,6 +1,7 @@
 {
     "name": "Syncthing",
     "id": "syncthing",
+    "version": "0.1.0",
     "entry": "/ui/main.qml",
     "loadsBackend": true,
     "supportsScaling": false,

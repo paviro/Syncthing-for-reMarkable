@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use tokio::process::Command;
+use tracing::{error, warn};
 
 use crate::config::Config;
 use crate::filesystem;
@@ -71,10 +72,10 @@ pub async fn control_syncthing_service(
     action: ServiceAction,
 ) -> Result<String, MonitorError> {
     let service_name = &config.systemd_service_name;
-    
+
     // Enable/disable operations need filesystem to be writable
     let needs_remount = matches!(action, ServiceAction::Enable | ServiceAction::Disable);
-    
+
     if needs_remount {
         control_service_with_remount(service_name, action).await
     } else {
@@ -89,21 +90,21 @@ async fn control_service_with_remount(
 ) -> Result<String, MonitorError> {
     // Remount filesystem as read-write, track if it was read-only before
     let was_readonly = filesystem::remount_root_rw().await?;
-    
+
     // Try to unmount /etc overlay if it exists
     if let Err(err) = filesystem::unmount_etc_if_needed().await {
-        eprintln!("Warning: failed to unmount /etc: {}", err);
+        warn!(error = ?err, "Failed to unmount /etc before systemctl operation");
         // Continue anyway, might not be critical
     }
-    
+
     // Execute the systemctl command
     let result = execute_systemctl_command(service_name, action).await;
-    
+
     // Restore read-only mount only if it was read-only before
     if let Err(restore_err) = filesystem::restore_mounts_if_needed(was_readonly).await {
-        eprintln!("Failed to restore mounts after systemctl operation: {}", restore_err);
+        error!(error = ?restore_err, "Failed to restore mounts after systemctl operation");
     }
-    
+
     result
 }
 

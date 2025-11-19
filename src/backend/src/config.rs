@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::PathBuf;
 use tokio::fs;
+use tracing::{debug, info, warn};
 
 use crate::types::MonitorError;
 
@@ -41,14 +42,15 @@ impl Config {
     pub async fn load() -> Self {
         match Self::try_load().await {
             Ok(config) => {
-                eprintln!(
-                    "Loaded config: service={}, config_dir={}",
-                    config.systemd_service_name, config.syncthing_config_dir
+                info!(
+                    service = %config.systemd_service_name,
+                    dir = %config.syncthing_config_dir,
+                    "Loaded configuration"
                 );
                 config
             }
             Err(err) => {
-                eprintln!("Failed to load config.json, using defaults: {err:?}");
+                warn!(error = ?err, "Failed to load config.json, using defaults");
                 Self::default()
             }
         }
@@ -58,10 +60,7 @@ impl Config {
         let config_path = Self::get_config_path()?;
 
         if !config_path.exists() {
-            eprintln!(
-                "Config file not found at {}, using defaults",
-                config_path.display()
-            );
+            warn!(path = %config_path.display(), "Config file not found, using defaults");
             return Ok(Self::default());
         }
 
@@ -91,22 +90,22 @@ impl Config {
         // Executable is at: app_root/backend/entry
         // Config should be at: app_root/config.json
         if let Ok(exe_path) = std::env::current_exe() {
-            eprintln!("Executable path: {}", exe_path.display());
+            debug!(path = %exe_path.display(), "Executable path detected");
 
             if let Some(backend_dir) = exe_path.parent() {
-                eprintln!("Backend dir: {}", backend_dir.display());
+                debug!(path = %backend_dir.display(), "Backend directory detected");
 
                 // Go up one more level to get to app root
                 if let Some(app_root) = backend_dir.parent() {
                     let config_path = app_root.join("config.json");
-                    eprintln!("Looking for config at: {}", config_path.display());
+                    debug!(path = %config_path.display(), "Looking for config");
                     return Ok(config_path);
                 }
             }
         }
 
         // Fallback: look in current directory
-        eprintln!("Using fallback: looking for config.json in current directory");
+        warn!("Using fallback: looking for config.json in current directory");
         Ok(PathBuf::from("config.json"))
     }
 

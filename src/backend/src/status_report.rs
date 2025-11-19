@@ -1,4 +1,5 @@
 use chrono::{SecondsFormat, Utc};
+use tracing::warn;
 
 use crate::config::Config;
 use crate::syncthing_client::SyncthingClient;
@@ -19,7 +20,7 @@ pub async fn build_status_payload(
             match client.compose_payload().await {
                 Ok(payload) => (payload.overview, payload.folders, gui_addr),
                 Err(err) => {
-                    eprintln!("collect payload failed: {err}");
+                    warn!(error = ?err, "Collecting payload failed");
                     *client_slot = None;
                     (SyncthingOverview::error(err.to_string()), Vec::new(), None)
                 }

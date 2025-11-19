@@ -25,6 +25,9 @@ Rectangle {
     property real fontScale: 1.15
     property bool installerPromptDismissed: false
     property string guiAddress: ""
+    property var updateCheckResult: null
+    property var updateStatus: null
+    property int updateRestartCountdown: 0
     onInstallerStatusChanged: {
         if (!installerNeedsAttention()) {
             installerPromptDismissed = false
@@ -78,6 +81,40 @@ Rectangle {
                     statusMessage = `GUI address response error: ${errGuiAddress}`
                 }
                 controlBusy = false
+                break
+            case 104:
+                try {
+                    updateCheckResult = JSON.parse(contents)
+                    if (updateCheckResult.update_available) {
+                        statusMessage = `Update available: ${updateCheckResult.latest_version}`
+                    } else {
+                        statusMessage = "App is up to date"
+                    }
+                } catch (errUpdate) {
+                    statusMessage = `Update check error: ${errUpdate}`
+                }
+                break
+            case 105:
+                try {
+                    updateStatus = JSON.parse(contents)
+                    if (updateStatus.restart_seconds_remaining !== undefined && updateStatus.restart_seconds_remaining !== null) {
+                        updateRestartCountdown = updateStatus.restart_seconds_remaining
+                        if (updateStatus.pending_restart && updateRestartCountdown > 0) {
+                            restartCountdownTimer.start()
+                        } else if (!updateStatus.pending_restart) {
+                            restartCountdownTimer.stop()
+                            updateRestartCountdown = 0
+                        }
+                    } else if (!updateStatus || !updateStatus.pending_restart) {
+                        restartCountdownTimer.stop()
+                        updateRestartCountdown = 0
+                    }
+                    if (updateStatus.progress_message) {
+                        statusMessage = updateStatus.progress_message
+                    }
+                } catch (errUpdateStatus) {
+                    statusMessage = `Update status error: ${errUpdateStatus}`
+                }
                 break
             case 500:
                 try {
@@ -133,11 +170,36 @@ Rectangle {
         backend.sendMessage(4, JSON.stringify({ address: address }))
     }
 
+    function checkForUpdates() {
+        backend.sendMessage(5, JSON.stringify({}))
+    }
+
+    function downloadUpdate() {
+        backend.sendMessage(6, JSON.stringify({}))
+    }
+
+    function requestRestart() {
+        backend.sendMessage(7, JSON.stringify({}))
+    }
+
     Timer {
         interval: 5000
         repeat: true
         running: true
         onTriggered: requestRefresh("timer")
+    }
+
+    Timer {
+        id: restartCountdownTimer
+        interval: 1000
+        repeat: true
+        onTriggered: {
+            if (root.updateRestartCountdown > 0) {
+                root.updateRestartCountdown--
+            } else {
+                stop()
+            }
+        }
     }
 
     Component.onCompleted: requestRefresh("initial")
@@ -210,6 +272,9 @@ Rectangle {
         serviceStatus: root.serviceStatus
         controlBusy: root.controlBusy
         guiAddress: root.guiAddress
+        updateCheckResult: root.updateCheckResult
+        updateStatus: root.updateStatus
+        updateRestartCountdown: root.updateRestartCountdown
 
         onCloseRequested: settingsOverlay.hide()
         
@@ -219,6 +284,18 @@ Rectangle {
 
         onGuiAddressToggleRequested: function(address) {
             toggleGuiAddress(address)
+        }
+
+        onCheckForUpdatesRequested: function() {
+            checkForUpdates()
+        }
+
+        onDownloadUpdateRequested: function() {
+            downloadUpdate()
+        }
+
+        onRestartRequested: function() {
+            requestRestart()
         }
     }
 }

@@ -11,6 +11,8 @@ pub enum MonitorError {
     Io(#[from] std::io::Error),
     #[error("http error: {0}")]
     Http(#[from] reqwest::Error),
+    #[error("json error: {0}")]
+    Json(#[from] serde_json::Error),
     #[error("Syncthing API key not found")]
     MissingApiKey,
     #[error("config error: {0}")]

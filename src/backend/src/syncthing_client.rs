@@ -171,25 +171,30 @@ impl SyncthingClient {
             .get("gui")
             .and_then(|gui| gui.get("address"))
             .and_then(|addr| addr.as_str())
-            .ok_or_else(|| MonitorError::Syncthing("GUI address not found in config".to_string()))?;
+            .ok_or_else(|| {
+                MonitorError::Syncthing("GUI address not found in config".to_string())
+            })?;
         Ok(address.to_string())
     }
 
     pub async fn set_gui_address(&mut self, new_address: &str) -> Result<(), MonitorError> {
         // Get current config
         let mut config: Value = self.get_json("/rest/config").await?;
-        
+
         // Update the GUI address
         if let Some(gui) = config.get_mut("gui") {
             if let Some(gui_obj) = gui.as_object_mut() {
-                gui_obj.insert("address".to_string(), Value::String(new_address.to_string()));
+                gui_obj.insert(
+                    "address".to_string(),
+                    Value::String(new_address.to_string()),
+                );
             }
         }
 
         // Send the updated config back
         let base = &self.base_urls[self.current_idx.min(self.base_urls.len().saturating_sub(1))];
         let url = format!("{}/rest/config", base.trim_end_matches('/'));
-        
+
         let response = self
             .http
             .put(url)

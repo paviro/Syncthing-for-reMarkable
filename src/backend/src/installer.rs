@@ -1,24 +1,29 @@
-use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
-use flate2::read::GzDecoder;
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue, ACCEPT};
 use reqwest::Client;
 use serde::Deserialize;
 use serde::Serialize;
-use tar::Archive;
 use tokio::fs;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
+use tracing::{error, warn};
 
 use crate::architecture::detect_architecture;
+use crate::archive;
 use crate::config::Config;
 use crate::filesystem;
 use crate::types::MonitorError;
 
 const RELEASE_API_URL: &str = "https://api.github.com/repos/syncthing/syncthing/releases/latest";
 const TAR_EXTENSION: &str = ".tar.gz";
-const INSTALLER_USER_AGENT: &str = "remarkable-syncthing-installer";
+const INSTALLER_USER_AGENT: &str = "syncthing-for-remarkable-appload";
+const GITHUB_ACCEPT_HEADER: &str = "application/vnd.github+json";
+const GITHUB_API_VERSION_HEADER: &str = "x-github-api-version";
+const GITHUB_API_VERSION: &str = "2022-11-28";
+const REQUEST_TIMEOUT_SECS: u64 = 60;
 
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct InstallerStatus {
@@ -37,10 +42,19 @@ pub struct Installer {
 
 impl Installer {
     pub fn new(config: Config) -> Self {
+        let mut default_headers = HeaderMap::new();
+        default_headers.insert(ACCEPT, HeaderValue::from_static(GITHUB_ACCEPT_HEADER));
+        default_headers.insert(
+            HeaderName::from_static(GITHUB_API_VERSION_HEADER),
+            HeaderValue::from_static(GITHUB_API_VERSION),
+        );
+
         let client = Client::builder()
             .user_agent(INSTALLER_USER_AGENT)
+            .default_headers(default_headers)
+            .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
             .build()
-            .unwrap_or_else(|_| Client::new());
+            .expect("Failed to construct HTTP client for installer");
         Self { config, client }
     }
 
@@ -51,7 +65,7 @@ impl Installer {
                 .map(|m| m.is_file())
                 .unwrap_or(false),
             Err(err) => {
-                eprintln!("Failed to resolve syncthing binary path: {err}");
+                error!(error = ?err, "Failed to resolve syncthing binary path");
                 false
             }
         }
@@ -67,7 +81,7 @@ impl Installer {
         {
             Ok(output) => output.status.success(),
             Err(err) => {
-                eprintln!("Failed to query systemd unit {}: {err}", service_name);
+                error!(service = service_name, error = ?err, "Failed to query systemd unit");
                 false
             }
         }
@@ -90,7 +104,7 @@ impl Installer {
         let restore_result = filesystem::restore_mounts_if_needed(was_readonly).await;
 
         if let Err(err) = &restore_result {
-            eprintln!("Failed to restore mounts after installer run: {err}");
+            error!(error = ?err, "Failed to restore mounts after installer run");
         }
 
         service_result.and(restore_result)
@@ -119,40 +133,7 @@ impl Installer {
 
     async fn extract_binary(&self, tarball_path: &Path) -> Result<(), MonitorError> {
         let binary_path = self.binary_path()?;
-        let unpack_path = binary_path.clone();
-        let tarball = tarball_path.to_path_buf();
-        tokio::task::spawn_blocking(move || -> Result<(), MonitorError> {
-            let file = std::fs::File::open(&tarball)?;
-            let decoder = GzDecoder::new(file);
-            let mut archive = Archive::new(decoder);
-            let mut found = false;
-
-            for entry_result in archive.entries()? {
-                let mut entry = entry_result?;
-                if entry
-                    .path()?
-                    .file_name()
-                    .and_then(OsStr::to_str)
-                    .map(|name| name == "syncthing")
-                    .unwrap_or(false)
-                {
-                    entry.unpack(&unpack_path)?;
-                    found = true;
-                    break;
-                }
-            }
-
-            if !found {
-                return Err(MonitorError::Config(
-                    "Syncthing binary not found in downloaded archive".to_string(),
-                ));
-            }
-            Ok(())
-        })
-        .await
-        .map_err(|err| {
-            MonitorError::Config(format!("Extraction task failed to complete: {err}"))
-        })??;
+        archive::extract_tarball_entry(tarball_path, "syncthing", &binary_path).await?;
 
         #[cfg(unix)]
         {
@@ -182,18 +163,16 @@ impl Installer {
                 asset.name.starts_with(asset_prefix) && asset.name.ends_with(TAR_EXTENSION)
             })
             .ok_or_else(|| {
-                MonitorError::Config(
-                    format!(
-                        "Latest Syncthing release does not contain the expected {} asset",
-                        architecture.description()
-                    ),
-                )
+                MonitorError::Config(format!(
+                    "Latest Syncthing release does not contain the expected {} asset",
+                    architecture.description()
+                ))
             })
     }
 
     async fn install_service_inner(&self) -> Result<(), MonitorError> {
         if let Err(err) = filesystem::unmount_etc_if_needed().await {
-            eprintln!("Warning during installer: {}", err);
+            warn!(error = ?err, "Warning during installer unmount");
             // Continue anyway
         }
         self.write_service_file().await?;

@@ -13,10 +13,16 @@ Rectangle {
     property var serviceStatus: ({})
     property bool controlBusy: false
     property string guiAddress: ""
+    property var updateCheckResult: null
+    property var updateStatus: null
+    property int updateRestartCountdown: 0
 
     signal closeRequested()
     signal autostartToggleRequested(bool enable)
     signal guiAddressToggleRequested(string address)
+    signal checkForUpdatesRequested()
+    signal downloadUpdateRequested()
+    signal restartRequested()
 
     function fs(value) {
         return value * fontScale
@@ -31,15 +37,91 @@ Rectangle {
         return guiAddress.startsWith("0.0.0.0:")
     }
 
+    function getCurrentVersion() {
+        if (updateCheckResult && updateCheckResult.current_version) {
+            return updateCheckResult.current_version
+        }
+        return "1.0.0"
+    }
+
+    function isRestartPending() {
+        return updateStatus && updateStatus.pending_restart
+    }
+
+    function getUpdateStatusText() {
+        if (isRestartPending()) {
+            return "Update installed. Close this app, then press Reload in AppLoad (top-right) to load the new version."
+        }
+        if (updateStatus && updateStatus.error) {
+            return updateStatus.error
+        }
+        if (updateStatus && updateStatus.progress_message) {
+            return updateStatus.progress_message
+        }
+        if (updateCheckResult) {
+            if (updateCheckResult.update_available) {
+                return `Current: ${updateCheckResult.current_version} → Available: ${updateCheckResult.latest_version}`
+            } else {
+                return "Your app is up to date"
+            }
+        }
+        return "Checks the version of the AppLoad app"
+    }
+
+    function isUpdateInProgress() {
+        return updateStatus && updateStatus.in_progress
+    }
+
+    function isUpdateAvailable() {
+        return updateCheckResult && updateCheckResult.update_available
+    }
+    
+    function getUpdateButtonLabel() {
+        if (isRestartPending()) {
+            const secs = Math.max(0, updateRestartCountdown || 0)
+            return secs > 0 ? `Close (${secs})` : "Closing..."
+        }
+        if (isUpdateAvailable()) {
+            return "Install"
+        }
+        return "Check"
+    }
+
+    function isUpdateButtonEnabled() {
+        if (isRestartPending()) {
+            return true
+        }
+        return !isUpdateInProgress()
+    }
+
+    function handleUpdateButtonClick() {
+        if (isRestartPending()) {
+            overlay.restartRequested()
+        } else if (isUpdateAvailable()) {
+            overlay.downloadUpdateRequested()
+        } else {
+            overlay.checkForUpdatesRequested()
+        }
+    }
+
+    function canCloseOverlay() {
+        return !isUpdateInProgress() && !isRestartPending()
+    }
+
     MouseArea {
         anchors.fill: parent
-        onClicked: overlay.closeRequested()
+        onClicked: {
+            if (overlay.canCloseOverlay()) {
+                overlay.closeRequested()
+            }
+        }
     }
 
     Rectangle {
+        id: settingsCard
         anchors.centerIn: parent
         width: Math.min(parent.width * 0.9, 800)
-        height: Math.min(parent.height * 0.7, 500)
+        height: Math.min(parent.height * 0.9, contentColumn.implicitHeight + 80)
         color: "white"
         radius: 8
         border.color: "#000000"
@@ -51,8 +133,10 @@ Rectangle {
         }
 
         ColumnLayout {
+            id: contentColumn
             anchors.fill: parent
             anchors.margins: 40
+            anchors.bottomMargin: 25
             spacing: 28
 
             RowLayout {
@@ -73,7 +157,12 @@ Rectangle {
                     text: "Close"
                     font.pointSize: fs(26)
                     flat: true
-                    onClicked: overlay.closeRequested()
+                    visible: overlay.canCloseOverlay()
+                    onClicked: {
+                        if (overlay.canCloseOverlay()) {
+                            overlay.closeRequested()
+                        }
+                    }
                     
                     contentItem: Text {
                         text: parent.text
@@ -197,6 +286,81 @@ Rectangle {
                         }
                     }
                 }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 8
+                    Layout.bottomMargin: 8
+                    height: 1
+                    color: "#cccccc"
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 0
+                    Layout.rightMargin: 0
+                    spacing: 12
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 30
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 12
+
+                            Text {
+                                text: "Update"
+                                font.pointSize: fs(24)
+                                font.bold: true
+                                color: "#000000"
+                            }
+
+                            Text {
+                                text: getUpdateStatusText()
+                                font.pointSize: fs(18)
+                                color: (updateStatus && updateStatus.error) ? "#cc0000" : "#333333"
+                                wrapMode: Text.WordWrap
+                                Layout.fillWidth: true
+                            }
+                        }
+
+                        Button {
+                            text: getUpdateButtonLabel()
+                            font.pointSize: fs(22)
+                            enabled: isUpdateButtonEnabled()
+                            Layout.alignment: Qt.AlignVCenter
+                            
+                            contentItem: Text {
+                                text: parent.text
+                                font: parent.font
+                                color: "#000000"
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            
+                            background: Rectangle {
+                                color: {
+                                    if (!parent.enabled) return "#f5f5f5"
+                                    if (isRestartPending()) {
+                                        return "transparent"
+                                    }
+                                    if (isUpdateAvailable()) {
+                                        return parent.pressed ? "#A1BA46" : '#c6f02c'
+                                    }
+                                    return parent.pressed ? "#e0e0e0" : "white"
+                                }
+                                radius: 4
+                                border.color: "#000000"
+                                border.width: 2
+                                implicitWidth: 140
+                                implicitHeight: 60
+                            }
+
+                            onClicked: handleUpdateButtonClick()
+                        }
+                    }
+                }
             }
 
             Item {
@@ -210,7 +374,9 @@ Rectangle {
     }
 
     function hide() {
+        if (canCloseOverlay()) {
         visible = false
+        }
     }
 }
 
