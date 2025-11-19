@@ -1,6 +1,5 @@
 use serde::Serialize;
 use thiserror::Error;
-use tokio::sync::mpsc::Sender;
 
 #[derive(Debug, Error)]
 pub enum MonitorError {
@@ -143,23 +142,3 @@ pub struct PeerPayload {
     pub folders: Vec<PeerFolderState>,
 }
 
-#[derive(Debug, Clone)]
-pub struct DownloadProgress {
-    pub downloaded_bytes: u64,
-    pub total_bytes: Option<u64>,
-}
-
-impl DownloadProgress {
-    pub fn percent(&self) -> Option<u8> {
-        self.total_bytes.map(|total| {
-            if total == 0 {
-                100
-            } else {
-                let percent = (self.downloaded_bytes.saturating_mul(100)) / total;
-                percent.min(100) as u8
-            }
-        })
-    }
-}
-
-pub type DownloadProgressSender = Sender<DownloadProgress>;

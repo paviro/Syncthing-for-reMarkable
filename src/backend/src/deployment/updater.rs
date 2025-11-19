@@ -1,43 +1,24 @@
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue, ACCEPT};
-use reqwest::Client;
-use serde::{Deserialize, Serialize};
+//! Updater for the Syncthing-for-reMarkable AppLoad bundle.
+
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+
+use reqwest::Client;
+use serde_json::Value;
 use tempfile::TempDir;
 use tokio::fs;
-use tokio::io::AsyncWriteExt;
 use tracing::info;
 
 use crate::architecture::{detect_architecture, Architecture};
 use crate::archive;
 use crate::config::Config;
-use crate::types::{DownloadProgress, DownloadProgressSender, MonitorError};
+use crate::deployment::assets;
+use crate::deployment::client::{default_request_timeout, github_client};
+use crate::deployment::download::{download_to_path, DEFAULT_USER_AGENT};
+use crate::deployment::{DownloadProgressSender, UpdateCheckResult};
+use crate::types::MonitorError;
 
 const RELEASE_API_URL: &str =
     "https://api.github.com/repos/paviro/Syncthing-for-reMarkable/releases/latest";
-const UPDATER_USER_AGENT: &str = "syncthing-for-remarkable-appload";
-const GITHUB_ACCEPT_HEADER: &str = "application/vnd.github+json";
-const GITHUB_API_VERSION_HEADER: &str = "x-github-api-version";
-const GITHUB_API_VERSION: &str = "2022-11-28";
-const REQUEST_TIMEOUT_SECS: u64 = 60;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateCheckResult {
-    pub current_version: String,
-    pub latest_version: String,
-    pub update_available: bool,
-    pub download_url: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct UpdateStatus {
-    pub in_progress: bool,
-    pub progress_message: Option<String>,
-    pub error: Option<String>,
-    pub success: bool,
-    pub pending_restart: bool,
-    pub restart_seconds_remaining: Option<u32>,
-}
 
 #[derive(Clone)]
 pub struct Updater {
@@ -46,27 +27,15 @@ pub struct Updater {
 
 impl Updater {
     pub fn new() -> Self {
-        let mut default_headers = HeaderMap::new();
-        default_headers.insert(ACCEPT, HeaderValue::from_static(GITHUB_ACCEPT_HEADER));
-        default_headers.insert(
-            HeaderName::from_static(GITHUB_API_VERSION_HEADER),
-            HeaderValue::from_static(GITHUB_API_VERSION),
-        );
-
-        let client = Client::builder()
-            .user_agent(UPDATER_USER_AGENT)
-            .default_headers(default_headers)
-            .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
-            .build()
+        let client = github_client(DEFAULT_USER_AGENT, default_request_timeout())
             .expect("Failed to construct HTTP client for updater");
         Self { client }
     }
 
-    /// Read the current version from manifest.json
     pub async fn get_current_version() -> Result<String, MonitorError> {
         let manifest_path = Self::get_manifest_path()?;
         let contents = fs::read_to_string(&manifest_path).await?;
-        let manifest: serde_json::Value = serde_json::from_str(&contents)?;
+        let manifest: Value = serde_json::from_str(&contents)?;
 
         manifest
             .get("version")
@@ -82,22 +51,16 @@ impl Updater {
         Ok(app_root.join("manifest.json"))
     }
 
-    /// Check if an update is available
     pub async fn check_for_updates(&self) -> Result<UpdateCheckResult, MonitorError> {
         let current_version = Self::get_current_version().await?;
         let architecture = detect_architecture().await?;
-        let release = self.fetch_latest_release().await?;
-
+        let release = assets::fetch_release(&self.client, RELEASE_API_URL).await?;
         let latest_version = release.tag_name.trim_start_matches('v').to_string();
-
         let update_available = self.compare_versions(&current_version, &latest_version)?;
 
         let download_url = if update_available {
             let asset_name = self.get_asset_name_for_arch(architecture);
-            release
-                .assets
-                .iter()
-                .find(|asset| asset.name == asset_name)
+            assets::select_asset_exact(&release.assets, &asset_name)
                 .map(|asset| asset.browser_download_url.clone())
         } else {
             None
@@ -111,7 +74,6 @@ impl Updater {
         })
     }
 
-    /// Compare two semantic versions, returns true if latest > current
     fn compare_versions(&self, current: &str, latest: &str) -> Result<bool, MonitorError> {
         let current_semver = semver::Version::parse(current).map_err(|err| {
             MonitorError::Config(format!("Invalid current version '{}': {}", current, err))
@@ -131,74 +93,24 @@ impl Updater {
         }
     }
 
-    /// Download and apply an update
     pub async fn download_and_apply_update(
         &self,
         download_url: &str,
         progress_tx: Option<DownloadProgressSender>,
     ) -> Result<(), MonitorError> {
-        // Create a temporary directory for extraction
         let temp_dir = TempDir::new().map_err(|err| {
             MonitorError::Config(format!("Failed to create temporary directory: {}", err))
         })?;
 
-        // Download the zip file
         let zip_path = temp_dir.path().join("update.zip");
-        self.download_file(download_url, &zip_path, progress_tx).await?;
+        download_to_path(&self.client, download_url, &zip_path, progress_tx, None).await?;
 
-        // Extract to temporary directory
         let extract_dir = temp_dir.path().join("extracted");
         fs::create_dir_all(&extract_dir).await?;
         archive::extract_zip_archive(&zip_path, &extract_dir).await?;
 
-        // Copy files to app root, excluding config.json and syncthing binary
         let app_root = Config::app_root_dir()?;
-        self.copy_update_files(&extract_dir, &app_root).await?;
-
-        Ok(())
-    }
-
-    async fn download_file(
-        &self,
-        url: &str,
-        destination: &Path,
-        progress_tx: Option<DownloadProgressSender>,
-    ) -> Result<(), MonitorError> {
-        let mut response = self
-            .client
-            .get(url)
-            .send()
-            .await?
-            .error_for_status()
-            .map_err(|err| MonitorError::Http(err))?;
-
-        let mut file = tokio::fs::File::create(destination).await?;
-        let total_bytes = response.content_length();
-        let mut downloaded_bytes: u64 = 0;
-
-        if let Some(progress_tx) = &progress_tx {
-            let _ = progress_tx
-                .send(DownloadProgress {
-                    downloaded_bytes,
-                    total_bytes,
-                })
-                .await;
-        }
-
-        while let Some(chunk) = response.chunk().await? {
-            file.write_all(&chunk).await?;
-            downloaded_bytes = downloaded_bytes.saturating_add(chunk.len() as u64);
-            if let Some(progress_tx) = &progress_tx {
-                let _ = progress_tx
-                    .send(DownloadProgress {
-                        downloaded_bytes,
-                        total_bytes,
-                    })
-                    .await;
-            }
-        }
-        file.flush().await?;
-        Ok(())
+        self.copy_update_files(&extract_dir, &app_root).await
     }
 
     async fn copy_update_files(
@@ -336,29 +248,5 @@ impl Updater {
             .unwrap_or_else(|| "tmp-update-file".to_string());
         dest.with_file_name(file_name)
     }
-
-    async fn fetch_latest_release(&self) -> Result<Release, MonitorError> {
-        let response = self
-            .client
-            .get(RELEASE_API_URL)
-            .send()
-            .await?
-            .error_for_status()
-            .map_err(|err| MonitorError::Http(err))?;
-
-        let release: Release = response.json().await?;
-        Ok(release)
-    }
 }
 
-#[derive(Debug, Deserialize)]
-struct Release {
-    tag_name: String,
-    assets: Vec<ReleaseAsset>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ReleaseAsset {
-    name: String,
-    browser_download_url: String,
-}

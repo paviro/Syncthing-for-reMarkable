@@ -1,13 +1,12 @@
 mod architecture;
 mod archive;
 mod config;
+mod deployment;
 mod filesystem;
-mod installer;
 mod status_report;
 mod syncthing_client;
 mod systemd;
 mod types;
-mod updater;
 mod utils;
 use appload_client::{
     AppLoad, AppLoadBackend, BackendReplier, Message, MSG_SYSTEM_NEW_COORDINATOR,
@@ -22,12 +21,13 @@ use tracing::{error, warn};
 use tracing_subscriber::EnvFilter;
 
 use crate::config::Config;
-use crate::installer::{Installer, InstallerStatus};
+use crate::deployment::{
+    render_download_progress_message, should_emit_download_progress, Installer, InstallerStatus,
+    UpdateStatus, Updater,
+};
 use crate::syncthing_client::SyncthingClient;
 use crate::systemd::{control_syncthing_service, query_systemd_status};
-use crate::types::{DownloadProgress, MonitorError, SystemdStatus};
-use crate::updater::{UpdateStatus, Updater};
-use crate::utils::format_bytes;
+use crate::types::{MonitorError, SystemdStatus};
 
 const MSG_CONTROL_REQUEST: u32 = 2;
 const MSG_INSTALL_TRIGGER: u32 = 3;
@@ -49,7 +49,6 @@ const EVENT_STREAM_TIMEOUT_SECS: u64 = 30;
 const EVENT_HEARTBEAT_SECS: u64 = 5;
 const EVENT_RECONNECT_DELAY_SECS: u64 = 5;
 const SYSTEMD_MONITOR_INTERVAL_SECS: u64 = 5;
-const DOWNLOAD_PROGRESS_BYTE_STEP: u64 = 512 * 1024;
 
 #[tokio::main]
 async fn main() {
@@ -142,50 +141,6 @@ fn task_is_running(handle: &Option<JoinHandle<()>>) -> bool {
         .as_ref()
         .map(|handle| !handle.is_finished())
         .unwrap_or(false)
-}
-
-fn render_download_progress_message(prefix: &str, progress: &DownloadProgress) -> String {
-    match progress.total_bytes {
-        Some(total) => {
-            let percent = progress.percent().unwrap_or(0);
-            format!(
-                "{} ({} / {} - {}%)...",
-                prefix,
-                format_bytes(progress.downloaded_bytes),
-                format_bytes(total),
-                percent
-            )
-        }
-        None => format!(
-            "{} ({} downloaded)...",
-            prefix,
-            format_bytes(progress.downloaded_bytes)
-        ),
-    }
-}
-
-fn should_emit_download_progress(
-    progress: &DownloadProgress,
-    last_percent: &mut Option<u8>,
-    last_bytes: &mut u64,
-) -> bool {
-    if let Some(percent) = progress.percent() {
-        if last_percent.map(|prev| percent > prev).unwrap_or(true) {
-            *last_percent = Some(percent);
-            true
-        } else {
-            false
-        }
-    } else if progress
-        .downloaded_bytes
-        .saturating_sub(*last_bytes)
-        >= DOWNLOAD_PROGRESS_BYTE_STEP
-    {
-        *last_bytes = progress.downloaded_bytes;
-        true
-    } else {
-        false
-    }
 }
 
 #[async_trait]
