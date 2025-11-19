@@ -41,6 +41,35 @@ Rectangle {
         return value.toFixed(1) + "%"
     }
 
+    function folderSizeSummary(folder) {
+        if (!folder)
+            return "n/a"
+
+        var totalText = formatBytes(folder.global_bytes)
+        var stateCode = (folder.state_code || "").toString()
+        var needBytes = Number(folder.need_bytes || 0)
+
+        if (stateCode === "up_to_date" || needBytes === 0)
+            return `Size ${totalText}`
+
+        return `Need ${formatBytes(folder.need_bytes)} of ${totalText}`
+    }
+
+    function folderPeerNeedSummary(folder) {
+        if (!folder || !folder.peers_need_summary)
+            return ""
+
+        var summary = folder.peers_need_summary
+        var peerCount = Number(summary.peer_count || 0)
+        var needBytes = Number(summary.need_bytes || 0)
+        if (peerCount <= 0 || needBytes <= 0)
+            return ""
+
+        var peerLabel = peerCount === 1 ? "peer" : "peers"
+        var verb = peerCount === 1 ? "needs" : "need"
+        return `${peerCount} ${peerLabel} ${verb} ${formatBytes(needBytes)}`
+    }
+
     function statusInfo(folder) {
         if (!folder)
             return ({ label: "Unknown", color: "#ffd2a0" })
@@ -57,6 +86,8 @@ Rectangle {
             return ({ label: label, color: "#ffb3b3" })
         case "waiting_to_scan":
             return ({ label: label, color: "#dfeafe" })
+        case "waiting_to_sync":
+            return ({ label: label, color: "#ffe3a3" })
         case "scanning":
             return ({ label: label, color: "#ffe3a3" })
         case "preparing_to_sync":
@@ -185,8 +216,11 @@ Rectangle {
                         }
 
                         RowLayout {
+                            id: progressRow
                             Layout.fillWidth: true
                             spacing: 12
+                            property string sizeSummary: foldersPanel.folderSizeSummary(modelData)
+            property string peerNeedSummary: foldersPanel.folderPeerNeedSummary(modelData)
 
                         Text {
                                 text: `Progress ${foldersPanel.formatPercent(modelData.completion || 0)}`
@@ -195,9 +229,31 @@ Rectangle {
                         }
 
                         Text {
-                            text: `Need ${foldersPanel.formatBytes(modelData.need_bytes)} of ${foldersPanel.formatBytes(modelData.global_bytes)}`
+                                text: "·"
                                 font.pointSize: fs(16)
                                 color: "#232a40"
+                                visible: progressRow.sizeSummary.length > 0
+                        }
+
+                        Text {
+                            text: progressRow.sizeSummary
+                                font.pointSize: fs(16)
+                                color: "#232a40"
+                visible: progressRow.sizeSummary.length > 0
+            }
+
+            Text {
+                text: "·"
+                font.pointSize: fs(16)
+                color: "#232a40"
+                visible: progressRow.peerNeedSummary.length > 0
+            }
+
+            Text {
+                text: progressRow.peerNeedSummary
+                font.pointSize: fs(16)
+                color: "#232a40"
+                visible: progressRow.peerNeedSummary.length > 0
                             }
                         }
 

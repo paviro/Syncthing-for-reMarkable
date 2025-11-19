@@ -10,7 +10,11 @@ use serde_json::Value;
 use tokio::fs;
 
 use crate::config::Config;
-use crate::types::{FolderChange, FolderPayload, FolderStateCode, MonitorError, SyncthingOverview};
+use crate::types::{
+    FolderChange, FolderPayload, FolderPeerNeedSummary, FolderStateCode, MonitorError,
+    SyncthingOverview,
+};
+use tracing::warn;
 
 const RECENT_EVENTS_LIMIT: u32 = 200;
 const RECENT_FILES_PER_FOLDER: usize = 4;
@@ -72,19 +76,27 @@ impl SyncthingClient {
             .await?;
         let mut folders = Vec::new();
 
+        let overview = SyncthingOverview::from_value(&status_value);
+        let my_id = overview.my_id.clone();
+
         for folder in &config.folders {
             let query = FolderStatusQuery {
                 folder: folder.id.as_str(),
             };
             let status: Value = self.get_json_with_query("/rest/db/status", &query).await?;
             let last_changes = recent.get(&folder.id).cloned().unwrap_or_default();
-            folders.push(FolderPayload::from_parts(folder, &status, last_changes));
+            let peer_need_summary = self
+                .collect_peer_need_summary(folder, my_id.as_deref())
+                .await;
+            folders.push(FolderPayload::from_parts(
+                folder,
+                &status,
+                last_changes,
+                peer_need_summary,
+            ));
         }
 
-        Ok(SyncthingData {
-            overview: SyncthingOverview::from_value(&status_value),
-            folders,
-        })
+        Ok(SyncthingData { overview, folders })
     }
 
     pub async fn wait_for_updates(
@@ -157,6 +169,68 @@ impl SyncthingClient {
         }
 
         Ok(changes)
+    }
+
+    async fn collect_peer_need_summary(
+        &mut self,
+        folder: &FolderConfig,
+        my_id: Option<&str>,
+    ) -> Option<FolderPeerNeedSummary> {
+        if folder.devices.is_empty() {
+            return None;
+        }
+
+        let mut summary = FolderPeerNeedSummary::default();
+        for device in &folder.devices {
+            if device.device_id.is_empty() {
+                continue;
+            }
+            if let Some(local_id) = my_id {
+                if device.device_id == local_id {
+                    continue;
+                }
+            }
+
+            match self
+                .query_remote_completion(folder.id.as_str(), device.device_id.as_str())
+                .await
+            {
+                Ok(completion) => {
+                    let need = completion.need_bytes.unwrap_or(0);
+                    if need > 0 {
+                        summary.peer_count += 1;
+                        summary.need_bytes = summary.need_bytes.saturating_add(need);
+                    }
+                }
+                Err(err) => {
+                    warn!(
+                        folder = %folder.id,
+                        device = %device.device_id,
+                        error = ?err,
+                        "Failed to query remote completion"
+                    );
+                }
+            }
+        }
+
+        if summary.peer_count > 0 {
+            Some(summary)
+        } else {
+            None
+        }
+    }
+
+    async fn query_remote_completion(
+        &mut self,
+        folder_id: &str,
+        device_id: &str,
+    ) -> Result<RemoteCompletion, MonitorError> {
+        let query = CompletionQuery {
+            folder: folder_id,
+            device: device_id,
+        };
+        self.get_json_with_query("/rest/db/completion", &query)
+            .await
     }
 
     async fn get_json<T>(&mut self, path: &str) -> Result<T, MonitorError>
@@ -274,6 +348,12 @@ struct EventStreamQuery<'a> {
     events: Option<&'a [&'a str]>,
 }
 
+#[derive(Serialize)]
+struct CompletionQuery<'a> {
+    device: &'a str,
+    folder: &'a str,
+}
+
 #[derive(Debug, Deserialize)]
 struct SyncthingConfig {
     #[serde(default)]
@@ -289,6 +369,14 @@ struct FolderConfig {
     path: Option<String>,
     #[serde(default)]
     paused: Option<bool>,
+    #[serde(default)]
+    devices: Vec<FolderDevice>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct FolderDevice {
+    #[serde(rename = "deviceID")]
+    device_id: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -298,6 +386,14 @@ struct SyncthingEvent {
     event_type: String,
     time: String,
     data: Value,
+}
+
+#[derive(Debug, Deserialize)]
+struct RemoteCompletion {
+    #[allow(dead_code)]
+    completion: Option<f64>,
+    #[serde(rename = "needBytes")]
+    need_bytes: Option<u64>,
 }
 
 impl SyncthingOverview {
@@ -346,7 +442,12 @@ impl SyncthingOverview {
 }
 
 impl FolderPayload {
-    fn from_parts(folder: &FolderConfig, status: &Value, last_changes: Vec<FolderChange>) -> Self {
+    fn from_parts(
+        folder: &FolderConfig,
+        status: &Value,
+        last_changes: Vec<FolderChange>,
+        peers_need_summary: Option<FolderPeerNeedSummary>,
+    ) -> Self {
         let global_bytes = status.get("globalBytes").and_then(|v| v.as_u64());
         let need_bytes = status.get("needBytes").and_then(|v| v.as_u64());
         let in_sync_bytes = status.get("inSyncBytes").and_then(|v| v.as_u64());
@@ -356,8 +457,7 @@ impl FolderPayload {
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
         let paused = folder.paused.unwrap_or(false);
-        let state_info =
-            humanize_folder_state(paused, state_raw.as_deref(), need_bytes, global_bytes);
+        let state_info = humanize_folder_state(paused, state_raw.as_deref(), need_bytes);
 
         Self {
             id: folder.id.clone(),
@@ -372,6 +472,7 @@ impl FolderPayload {
             need_bytes,
             completion,
             last_changes,
+            peers_need_summary,
         }
     }
 }

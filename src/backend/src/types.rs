@@ -93,6 +93,8 @@ pub struct FolderPayload {
     pub need_bytes: Option<u64>,
     pub completion: f64,
     pub last_changes: Vec<FolderChange>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peers_need_summary: Option<FolderPeerNeedSummary>,
 }
 
 #[derive(Debug, Serialize, Clone, Default)]
@@ -101,4 +103,10 @@ pub struct FolderChange {
     pub action: String,
     pub when: String,
     pub origin: Option<String>,
+}
+
+#[derive(Debug, Serialize, Clone, Copy, Default)]
+pub struct FolderPeerNeedSummary {
+    pub peer_count: u32,
+    pub need_bytes: u64,
 }
