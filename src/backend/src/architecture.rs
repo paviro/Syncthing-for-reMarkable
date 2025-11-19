@@ -9,13 +9,6 @@ pub enum Architecture {
 }
 
 impl Architecture {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Architecture::Arm32 => "arm",
-            Architecture::Arm64 => "arm64",
-        }
-    }
-
     pub fn syncthing_asset_prefix(&self) -> &'static str {
         match self {
             Architecture::Arm32 => "syncthing-linux-arm-",
