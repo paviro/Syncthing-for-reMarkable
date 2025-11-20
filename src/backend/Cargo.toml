@@ -1,6 +1,6 @@
 [package]
 name = "syncthing-rm-appload-backend"
-version = "0.3.5"
+version = "0.3.6"
 authors = ["Paul-Vincent Roll"]
 license = "MPL-2.0 license"
 edition = "2021"

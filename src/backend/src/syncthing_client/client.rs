@@ -15,6 +15,7 @@ use super::helpers::load_api_key;
 #[derive(Clone)]
 pub struct SyncthingClient {
     http: HttpClient,
+    http_longpoll: HttpClient,
 }
 
 impl SyncthingClient {
@@ -35,14 +36,23 @@ impl SyncthingClient {
             base_urls.push("http://127.0.0.1:8384".to_string());
         }
 
+        // Standard client for normal API requests (10s timeout)
         let http_client = Client::builder()
-            .timeout(Duration::from_secs(8))
+            .timeout(Duration::from_secs(5))
+            .danger_accept_invalid_certs(true)
+            .build()
+            .map_err(MonitorError::Http)?;
+
+        // Long-polling client for event stream (60s timeout to support 30s events)
+        let longpoll_client = Client::builder()
+            .timeout(Duration::from_secs(60))
             .danger_accept_invalid_certs(true)
             .build()
             .map_err(MonitorError::Http)?;
 
         Ok(Self {
-            http: HttpClient::new(api_key, http_client, base_urls),
+            http: HttpClient::new(api_key.clone(), http_client, base_urls.clone()),
+            http_longpoll: HttpClient::new(api_key, longpoll_client, base_urls),
         })
     }
 
@@ -67,7 +77,7 @@ impl SyncthingClient {
             events: None,
         };
         let events: Vec<SyncthingEvent> = self
-            .http
+            .http_longpoll
             .get_json_with_query("/rest/events", &query)
             .await?;
 
