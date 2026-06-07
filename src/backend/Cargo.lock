@@ -1342,7 +1342,7 @@ dependencies = [
 
 [[package]]
 name = "syncthing-rm-appload-backend"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "appload-client",
  "async-trait",
