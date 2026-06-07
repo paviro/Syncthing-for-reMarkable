@@ -4,6 +4,7 @@ mod core;
 mod helpers;
 mod models;
 
+pub use api::SyncthingUpgradeCheck;
 pub use client::SyncthingClient;
 
 // Re-export data types at root for convenience

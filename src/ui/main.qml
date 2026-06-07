@@ -22,12 +22,16 @@ Rectangle {
     readonly property int msgUpdateCheckRequest: 4
     readonly property int msgUpdateDownloadRequest: 5
     readonly property int msgUpdateRestartRequest: 6
+    readonly property int msgSyncthingUpdateCheckRequest: 7
+    readonly property int msgSyncthingUpdateInstallRequest: 8
     readonly property int msgStatusUpdate: 100
     readonly property int msgControlResult: 101
     readonly property int msgInstallStatus: 102
     readonly property int msgGuiAddressResult: 103
     readonly property int msgUpdateCheckResult: 104
     readonly property int msgUpdateDownloadStatus: 105
+    readonly property int msgSyncthingUpdateCheckResult: 106
+    readonly property int msgSyncthingUpdateStatus: 107
     readonly property int msgError: 500
 
     property var serviceStatus: ({})
@@ -42,6 +46,8 @@ Rectangle {
     property var updateCheckResult: null
     property var updateStatus: null
     property int updateRestartCountdown: 0
+    property var syncthingUpdateCheckResult: null
+    property var syncthingUpdateStatus: null
     property color backgroundColor: "#cbd1de"
     property color accentColor: "#1887f0"
     property color textColorPrimary: "#08122e"
@@ -120,6 +126,23 @@ Rectangle {
                     console.warn("Update status error", errUpdateStatus)
                 }
                 break
+            case root.msgSyncthingUpdateCheckResult:
+                try {
+                    syncthingUpdateCheckResult = JSON.parse(contents)
+                } catch (errSyncthingUpdate) {
+                    console.warn("Syncthing update check error", errSyncthingUpdate)
+                }
+                break
+            case root.msgSyncthingUpdateStatus:
+                try {
+                    syncthingUpdateStatus = JSON.parse(contents)
+                    if (syncthingUpdateStatus && syncthingUpdateStatus.upgrade_started) {
+                        syncthingUpdateCheckResult = null
+                    }
+                } catch (errSyncthingUpdateStatus) {
+                    console.warn("Syncthing update status error", errSyncthingUpdateStatus)
+                }
+                break
             case root.msgError:
                 try {
                     const errorPayload = JSON.parse(contents)
@@ -179,6 +202,14 @@ Rectangle {
 
     function requestRestart() {
         backend.sendMessage(msgUpdateRestartRequest, JSON.stringify({}))
+    }
+
+    function checkSyncthingUpdate() {
+        backend.sendMessage(msgSyncthingUpdateCheckRequest, JSON.stringify({}))
+    }
+
+    function installSyncthingUpdate() {
+        backend.sendMessage(msgSyncthingUpdateInstallRequest, JSON.stringify({}))
     }
 
     Timer {
@@ -272,6 +303,8 @@ Rectangle {
         updateCheckResult: root.updateCheckResult
         updateStatus: root.updateStatus
         updateRestartCountdown: root.updateRestartCountdown
+        syncthingUpdateCheckResult: root.syncthingUpdateCheckResult
+        syncthingUpdateStatus: root.syncthingUpdateStatus
 
         onCloseRequested: settingsOverlay.hide()
         
@@ -293,6 +326,14 @@ Rectangle {
 
         onRestartRequested: function() {
             requestRestart()
+        }
+
+        onCheckSyncthingUpdateRequested: function() {
+            checkSyncthingUpdate()
+        }
+
+        onInstallSyncthingUpdateRequested: function() {
+            installSyncthingUpdate()
         }
     }
 }

@@ -16,6 +16,8 @@ Rectangle {
     property var updateCheckResult: null
     property var updateStatus: null
     property int updateRestartCountdown: 0
+    property var syncthingUpdateCheckResult: null
+    property var syncthingUpdateStatus: null
     property color accentColor: "#1887f0"
 
     signal closeRequested()
@@ -24,6 +26,8 @@ Rectangle {
     signal checkForUpdatesRequested()
     signal downloadUpdateRequested()
     signal restartRequested()
+    signal checkSyncthingUpdateRequested()
+    signal installSyncthingUpdateRequested()
 
     function fs(value) {
         return value * fontScale
@@ -85,7 +89,7 @@ Rectangle {
         if (isRestartPending()) {
             return true
         }
-        return !isUpdateInProgress()
+        return !isUpdateInProgress() && !isSyncthingUpdateInProgress()
     }
 
     function handleUpdateButtonClick() {
@@ -99,7 +103,48 @@ Rectangle {
     }
 
     function canCloseOverlay() {
-        return !isUpdateInProgress() && !isRestartPending()
+        return !isUpdateInProgress() && !isRestartPending() && !isSyncthingUpdateInProgress()
+    }
+
+    function getSyncthingUpdateStatusText() {
+        if (syncthingUpdateStatus && syncthingUpdateStatus.error) {
+            return syncthingUpdateStatus.error
+        }
+        if (syncthingUpdateStatus && syncthingUpdateStatus.progress_message) {
+            return syncthingUpdateStatus.progress_message
+        }
+        if (syncthingUpdateCheckResult) {
+            const running = syncthingUpdateCheckResult.running || "unknown"
+            const latest = syncthingUpdateCheckResult.latest || "unknown"
+            if (syncthingUpdateCheckResult.newer) {
+                return `Current: ${running} → Available: ${latest}`
+            }
+            return `Syncthing is up to date (${running})`
+        }
+        return "Checks the installed Syncthing version"
+    }
+
+    function isSyncthingUpdateInProgress() {
+        return syncthingUpdateStatus && syncthingUpdateStatus.in_progress
+    }
+
+    function isSyncthingUpdateAvailable() {
+        return syncthingUpdateCheckResult && syncthingUpdateCheckResult.newer
+    }
+
+    function getSyncthingUpdateButtonLabel() {
+        if (isSyncthingUpdateAvailable()) {
+            return "Install"
+        }
+        return "Check"
+    }
+
+    function handleSyncthingUpdateButtonClick() {
+        if (isSyncthingUpdateAvailable()) {
+            overlay.installSyncthingUpdateRequested()
+        } else {
+            overlay.checkSyncthingUpdateRequested()
+        }
     }
 
     MouseArea {
@@ -299,7 +344,7 @@ Rectangle {
                             spacing: 12
 
                             Text {
-                                text: "Update"
+                                text: "Update UI"
                                 font.pointSize: fs(22)
                                 font.bold: true
                                 color: "#08122e"
@@ -351,6 +396,75 @@ Rectangle {
                         }
                     }
                 }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 8
+                    Layout.bottomMargin: 8
+                    height: 2
+                    color: "#5e667d"
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 0
+                    Layout.rightMargin: 0
+                    spacing: 12
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 30
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 12
+
+                            Text {
+                                text: "Update Syncthing"
+                                font.pointSize: fs(22)
+                                font.bold: true
+                                color: "#08122e"
+                            }
+
+                            Text {
+                                text: getSyncthingUpdateStatusText()
+                                font.pointSize: fs(16)
+                                color: (syncthingUpdateStatus && syncthingUpdateStatus.error) ? "#a80c0c" : "#1f2538"
+                                wrapMode: Text.WordWrap
+                                Layout.fillWidth: true
+                            }
+                        }
+
+                        Button {
+                            text: getSyncthingUpdateButtonLabel()
+                            font.pointSize: fs(20)
+                            enabled: !isSyncthingUpdateInProgress() && !isUpdateInProgress() && !isRestartPending()
+                            Layout.alignment: Qt.AlignVCenter
+
+                            contentItem: Text {
+                                text: parent.text
+                                font: parent.font
+                                color: "#ffffff"
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+
+                            background: Rectangle {
+                                color: {
+                                    if (!parent.enabled) return "#f5f5f5"
+                                    return parent.pressed ? "#0f6cca" : accentColor
+                                }
+                                border.color: parent.enabled ? accentColor : "#d6ddeb"
+                                border.width: 2
+                                radius: 16
+                                implicitWidth: 160
+                                implicitHeight: 60
+                            }
+
+                            onClicked: handleSyncthingUpdateButtonClick()
+                        }
+                    }
+                }
             }
 
             Item {
@@ -369,4 +483,3 @@ Rectangle {
         }
     }
 }
-

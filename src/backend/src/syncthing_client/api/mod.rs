@@ -6,6 +6,5 @@ pub use queries::{CompletionQuery, EventStreamQuery, EventsQuery, FolderStatusQu
 pub use responses::{EventWaitResult, SyncthingData};
 pub use types::{
     ConnectionsResponse, DeviceConfig, FolderConfig, RemoteCompletion, SyncthingConfig,
-    SyncthingEvent,
+    SyncthingEvent, SyncthingUpgradeCheck,
 };
-

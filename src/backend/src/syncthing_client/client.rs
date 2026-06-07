@@ -7,7 +7,9 @@ use serde_json::Value;
 use crate::config::Config;
 use crate::types::MonitorError;
 
-use super::api::{EventStreamQuery, EventWaitResult, SyncthingData, SyncthingEvent};
+use super::api::{
+    EventStreamQuery, EventWaitResult, SyncthingData, SyncthingEvent, SyncthingUpgradeCheck,
+};
 use super::core::{DataAggregator, HttpClient};
 use super::helpers::load_api_key;
 
@@ -23,7 +25,7 @@ impl SyncthingClient {
     pub async fn discover(config: &Config) -> Result<Self, MonitorError> {
         let api_key = load_api_key(config).await?;
         let mut base_urls = Vec::new();
-        
+
         if let Ok(custom) = env::var("SYNCTHING_API_URL") {
             let trimmed = custom.trim();
             if !trimmed.is_empty() {
@@ -128,6 +130,16 @@ impl SyncthingClient {
     /// Sends a POST request to /rest/system/restart which will cause Syncthing to restart itself.
     pub async fn restart(&mut self) -> Result<(), MonitorError> {
         self.http.post("/rest/system/restart").await
+    }
+
+    /// Checks whether Syncthing can upgrade itself.
+    pub async fn check_upgrade(&mut self) -> Result<SyncthingUpgradeCheck, MonitorError> {
+        self.http.get_json("/rest/system/upgrade").await
+    }
+
+    /// Starts Syncthing's built-in upgrade flow.
+    pub async fn perform_upgrade(&mut self) -> Result<(), MonitorError> {
+        self.http.post("/rest/system/upgrade").await
     }
 }
 

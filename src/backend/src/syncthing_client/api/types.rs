@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -76,6 +76,15 @@ pub struct RemoteCompletion {
     pub need_bytes: Option<u64>,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SyncthingUpgradeCheck {
+    pub running: String,
+    pub latest: String,
+    pub newer: bool,
+    #[serde(rename = "majorNewer")]
+    pub major_newer: bool,
+}
+
 impl SyncthingEvent {
     pub fn folder_id(&self) -> Option<&str> {
         self.data.get("folder").and_then(|v| v.as_str())
@@ -138,4 +147,3 @@ impl SyncthingEvent {
             .map(|s| s.to_string())
     }
 }
-

@@ -14,7 +14,7 @@ use tracing::error;
 
 use crate::config::Config;
 use crate::deployment::{Installer, Updater};
-use crate::syncthing_client::SyncthingClient;
+use crate::syncthing_client::{SyncthingClient, SyncthingUpgradeCheck};
 
 use self::protocol::*;
 
@@ -32,6 +32,11 @@ pub struct Backend {
     pub pending_update_url: Option<String>,
     pub update_pending_restart: bool,
     pub update_restart_seconds_remaining: Option<u32>,
+    pub syncthing_update_check_result: Option<SyncthingUpgradeCheck>,
+    pub syncthing_update_in_progress: bool,
+    pub syncthing_update_progress_message: Option<String>,
+    pub syncthing_update_error: Option<String>,
+    pub syncthing_update_started: bool,
     pub realtime_task: Option<JoinHandle<()>>,
     pub systemd_monitor_task: Option<JoinHandle<()>>,
 }
@@ -55,6 +60,11 @@ impl Backend {
             pending_update_url: None,
             update_pending_restart: false,
             update_restart_seconds_remaining: None,
+            syncthing_update_check_result: None,
+            syncthing_update_in_progress: false,
+            syncthing_update_progress_message: None,
+            syncthing_update_error: None,
+            syncthing_update_started: false,
             realtime_task: None,
             systemd_monitor_task: None,
         }
@@ -88,6 +98,7 @@ impl AppLoadBackend for Backend {
             MSG_SYSTEM_NEW_COORDINATOR => {
                 self.ensure_realtime_updates(functionality);
                 self.send_install_status(functionality).await;
+                self.send_syncthing_update_status(functionality).await;
                 self.send_status(functionality, "frontend-connected").await;
             }
             MSG_CONTROL_REQUEST => {
@@ -117,7 +128,10 @@ impl AppLoadBackend for Backend {
             }
             MSG_GUI_ADDRESS_TOGGLE => {
                 match serde_json::from_str::<GuiAddressToggleRequest>(&message.contents) {
-                    Ok(req) => self.handle_syncthing_gui_listen_address(functionality, req).await,
+                    Ok(req) => {
+                        self.handle_syncthing_gui_listen_address(functionality, req)
+                            .await
+                    }
                     Err(err) => self.send_error(
                         functionality,
                         &format!("Invalid GUI address toggle payload: {err}"),
@@ -133,10 +147,15 @@ impl AppLoadBackend for Backend {
             MSG_UPDATE_RESTART_REQUEST => {
                 self.handle_update_restart_request(functionality).await;
             }
+            MSG_SYNCTHING_UPDATE_CHECK_REQUEST => {
+                self.handle_syncthing_update_check(functionality).await;
+            }
+            MSG_SYNCTHING_UPDATE_INSTALL_REQUEST => {
+                self.handle_syncthing_update_install(functionality).await;
+            }
             other => {
                 self.send_error(functionality, &format!("Unknown message type {other}"));
             }
         }
     }
 }
-

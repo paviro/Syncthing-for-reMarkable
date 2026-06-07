@@ -31,6 +31,15 @@ pub struct UpdateStatus {
     pub restart_seconds_remaining: Option<u32>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct SyncthingUpdateStatus {
+    pub in_progress: bool,
+    pub progress_message: Option<String>,
+    pub error: Option<String>,
+    pub success: bool,
+    pub upgrade_started: bool,
+}
+
 #[derive(Debug, Clone)]
 pub struct DownloadProgress {
     pub downloaded_bytes: u64,
@@ -43,12 +52,14 @@ impl DownloadProgress {
             if total == 0 {
                 100
             } else {
-                let percent = (self.downloaded_bytes.saturating_mul(100)) / total;
-                percent.min(100) as u8
+                self.downloaded_bytes
+                    .saturating_mul(100)
+                    .checked_div(total)
+                    .unwrap_or(100)
+                    .min(100) as u8
             }
         })
     }
 }
 
 pub type DownloadProgressSender = Sender<DownloadProgress>;
-
