@@ -24,11 +24,52 @@ A [rm-appload](https://github.com/asivery/rm-appload) Syncthing application for 
 
 ### Pre-installation Steps
 
-1. **Install XOVI**
+The recommended way to install the AppLoad/XOVI prerequisites is [Vellum](https://remarkable.guide/guide/software/vellum.html), the community package manager for reMarkable tablets. Vellum handles package dependencies and device/OS compatibility checks for the packages it installs.
+
+1. **Set up SSH access**
+
+   Set up SSH access to your reMarkable if you have not already done so.
+
+2. **Install Vellum**
+
+   Follow the [Vellum installation instructions](https://github.com/vellum-dev/vellum-cli#installation) on your reMarkable.
+
+3. **Install AppLoad**
+
+   Use Vellum to install AppLoad:
+
+   ```bash
+   vellum update
+   vellum add appload
+   ```
+
+   Read the command output carefully. Vellum may print additional steps depending on your device and OS version.
+
+4. **Rebuild the XOVI hash table**
+
+   Rebuild the hash table after installing or updating AppLoad/XOVI packages:
+
+   ```bash
+   xovi/rebuild_hashtable
+   ```
+
+5. **Start XOVI/AppLoad**
+
+   Start XOVI after installing AppLoad, and after each reboot if you have not configured an automatic start method:
+
+   ```bash
+   xovi/start
+   ```
+
+### Manual Pre-installation Fallback
+
+If you cannot use Vellum, you can install the prerequisites manually:
+
+1. **Install XOVI manually**
    
    Install XOVI from [https://github.com/asivery/rm-xovi-extensions](https://github.com/asivery/rm-xovi-extensions) by using the included installation script.
 
-2. **Install Required Extensions**
+2. **Install required extensions manually**
    
    Install `qt-resource-rebuilder` (from the XOVI repo) and `rm-appload`:
    
@@ -38,7 +79,7 @@ A [rm-appload](https://github.com/asivery/rm-appload) Syncthing application for 
    cp appload.so /home/root/xovi/extensions.d/
    ```
 
-3. **Rebuild Hash Table**
+3. **Rebuild the hash table**
    
    ```bash
    xovi/rebuild_hashtable
