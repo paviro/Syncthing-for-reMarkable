@@ -1,5 +1,7 @@
 //! Installer for Syncthing binaries and systemd service setup.
 
+use std::ffi::OsStr;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use reqwest::Client;
@@ -19,6 +21,7 @@ use crate::utils::{filesystem, systemctl};
 
 const RELEASE_API_URL: &str = "https://api.github.com/repos/syncthing/syncthing/releases/latest";
 const TAR_EXTENSION: &str = ".tar.gz";
+const ELF_MAGIC: [u8; 4] = [0x7f, b'E', b'L', b'F'];
 
 #[derive(Clone)]
 pub struct Installer {
@@ -35,10 +38,17 @@ impl Installer {
 
     pub async fn binary_present(&self) -> bool {
         match self.binary_path() {
-            Ok(path) => fs::metadata(path)
-                .await
-                .map(|m| m.is_file())
-                .unwrap_or(false),
+            Ok(path) => match fs::metadata(&path).await {
+                Ok(metadata) if metadata.is_file() => {
+                    if let Err(err) = Self::validate_syncthing_binary(&path) {
+                        warn!(path = %path.display(), error = ?err, "Ignoring invalid Syncthing binary");
+                        false
+                    } else {
+                        true
+                    }
+                }
+                _ => false,
+            },
             Err(err) => {
                 error!(error = ?err, "Failed to resolve syncthing binary path");
                 false
@@ -120,13 +130,69 @@ impl Installer {
 
     async fn extract_binary(&self, tarball_path: &Path) -> Result<(), MonitorError> {
         let binary_path = self.binary_path()?;
-        archive::extract_tarball_entry(tarball_path, "syncthing", &binary_path).await?;
+        let archive_root = Self::expected_archive_root(tarball_path)?;
+        let archive_binary_path = PathBuf::from(&archive_root).join("syncthing");
+
+        archive::extract_tarball_file(tarball_path, &archive_binary_path, &binary_path).await?;
+
+        Self::validate_syncthing_binary(&binary_path)?;
 
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             let permissions = std::fs::Permissions::from_mode(0o755);
             fs::set_permissions(&binary_path, permissions).await?;
+        }
+
+        Ok(())
+    }
+
+    fn expected_archive_root(tarball_path: &Path) -> Result<String, MonitorError> {
+        let file_name = tarball_path
+            .file_name()
+            .and_then(OsStr::to_str)
+            .ok_or_else(|| {
+                MonitorError::Config(format!(
+                    "Syncthing archive path has no valid file name: {}",
+                    tarball_path.display()
+                ))
+            })?;
+
+        file_name
+            .strip_suffix(TAR_EXTENSION)
+            .map(str::to_string)
+            .ok_or_else(|| {
+                MonitorError::Config(format!(
+                    "Syncthing archive does not use expected {} suffix: {}",
+                    TAR_EXTENSION, file_name
+                ))
+            })
+    }
+
+    fn validate_syncthing_binary(binary_path: &Path) -> Result<(), MonitorError> {
+        let metadata = std::fs::metadata(binary_path)?;
+        if !metadata.is_file() {
+            return Err(MonitorError::Config(format!(
+                "Syncthing binary path is not a file: {}",
+                binary_path.display()
+            )));
+        }
+
+        if metadata.len() < ELF_MAGIC.len() as u64 {
+            return Err(MonitorError::Config(format!(
+                "Syncthing binary is too small to be valid: {}",
+                binary_path.display()
+            )));
+        }
+
+        let mut file = std::fs::File::open(binary_path)?;
+        let mut magic = [0_u8; 4];
+        file.read_exact(&mut magic)?;
+        if magic != ELF_MAGIC {
+            return Err(MonitorError::Config(format!(
+                "Syncthing binary is not an ELF executable: {}",
+                binary_path.display()
+            )));
         }
 
         Ok(())
@@ -180,5 +246,51 @@ WantedBy=multi-user.target
             binary_path.display(),
             self.config.syncthing_config_dir
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use tempfile::NamedTempFile;
+
+    use super::*;
+
+    #[test]
+    fn expected_archive_root_strips_tar_gz_suffix() {
+        let root =
+            Installer::expected_archive_root(Path::new("/tmp/syncthing-linux-arm64-v2.1.1.tar.gz"))
+                .expect("derive archive root");
+
+        assert_eq!(root, "syncthing-linux-arm64-v2.1.1");
+    }
+
+    #[test]
+    fn expected_archive_root_rejects_unexpected_suffix() {
+        assert!(Installer::expected_archive_root(Path::new(
+            "/tmp/syncthing-linux-arm64-v2.1.1.zip"
+        ))
+        .is_err());
+    }
+
+    #[test]
+    fn validate_syncthing_binary_accepts_elf_header() {
+        let binary = NamedTempFile::new().expect("create binary tempfile");
+        std::fs::write(binary.path(), b"\x7fELFtest").expect("write binary tempfile");
+
+        Installer::validate_syncthing_binary(binary.path()).expect("validate ELF-like binary");
+    }
+
+    #[test]
+    fn validate_syncthing_binary_rejects_ufw_profile_text() {
+        let profile = NamedTempFile::new().expect("create profile tempfile");
+        std::fs::write(
+            profile.path(),
+            b"[syncthing]\ntitle=Syncthing\ndescription=Syncthing file synchronisation\n",
+        )
+        .expect("write profile tempfile");
+
+        assert!(Installer::validate_syncthing_binary(profile.path()).is_err());
     }
 }
