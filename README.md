@@ -39,7 +39,11 @@ The script checks whether Vellum is already installed. If Vellum is missing, it 
 
 The script prompts before making changes. If an older Syncthing app install exists, the script treats the run as an app update: it preserves the installed Syncthing binary and local `config.json` when present, then replaces the old app files.
 
-### Manual Pre-installation Fallback
+### Manual Installation
+
+Use these steps if you prefer not to use the install script. First install the AppLoad/XOVI prerequisites, then install Syncthing for reMarkable manually.
+
+#### Install prerequisites with Vellum
 
 The recommended way to install the AppLoad/XOVI prerequisites is [Vellum](https://remarkable.guide/guide/software/vellum.html), the community package manager for reMarkable tablets. Vellum handles package dependencies and device/OS compatibility checks for the packages it installs.
 
@@ -78,7 +82,7 @@ The recommended way to install the AppLoad/XOVI prerequisites is [Vellum](https:
    xovi/start
    ```
 
-### Manual Non-Vellum Fallback
+#### Install prerequisites without Vellum
 
 If you cannot use Vellum, you can install the prerequisites manually:
 
@@ -110,7 +114,7 @@ If you cannot use Vellum, you can install the prerequisites manually:
    xovi/start
    ```
 
-### Installation Steps
+#### Install Syncthing for reMarkable
 
 1. **Download Syncthing for reMarkable**
    

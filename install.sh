@@ -208,4 +208,6 @@ fi
 
 say
 say "Done. Open the sidebar on your reMarkable, tap AppLoad, then launch Syncthing."
+say
+say "Note: If Syncthing does not show up in AppLoad, press the refresh button in the top right."
 say "When the app opens, it can download and install the Syncthing service."
