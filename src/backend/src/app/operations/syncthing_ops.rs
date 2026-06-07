@@ -1,9 +1,9 @@
-use appload_client::BackendReplier;
 use serde_json::json;
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 use crate::syncthing_client::SyncthingClient;
 use crate::systemd::{control_service, ServiceAction};
+use appload_client::BackendReplier;
 
 use super::super::protocol::{
     ControlRequest, GuiAddressToggleRequest, MSG_CONTROL_RESULT, MSG_GUI_ADDRESS_RESULT,
@@ -27,10 +27,14 @@ impl Backend {
                     "action": req.action.as_str(),
                     "message": result
                 });
-                if let Err(err) =
-                    functionality.send_message(MSG_CONTROL_RESULT, &payload.to_string())
+                if let Err(err) = self
+                    .send_json_message(functionality, MSG_CONTROL_RESULT, &payload)
+                    .await
                 {
-                    error!(error = ?err, "Failed to send control result");
+                    self.send_error(
+                        functionality,
+                        &format!("Failed to send control result: {err}"),
+                    );
                 }
                 self.send_status(functionality, "service-control").await;
                 return;
@@ -45,10 +49,14 @@ impl Backend {
                     "action": req.action.as_str(),
                     "message": result
                 });
-                if let Err(err) =
-                    functionality.send_message(MSG_CONTROL_RESULT, &payload.to_string())
+                if let Err(err) = self
+                    .send_json_message(functionality, MSG_CONTROL_RESULT, &payload)
+                    .await
                 {
-                    error!(error = ?err, "Failed to send control result");
+                    self.send_error(
+                        functionality,
+                        &format!("Failed to send control result: {err}"),
+                    );
                 }
                 self.send_status(functionality, "service-control").await;
             }
@@ -58,10 +66,14 @@ impl Backend {
                     "action": req.action.as_str(),
                     "message": err.to_string()
                 });
-                if let Err(send_err) =
-                    functionality.send_message(MSG_CONTROL_RESULT, &payload.to_string())
+                if let Err(send_err) = self
+                    .send_json_message(functionality, MSG_CONTROL_RESULT, &payload)
+                    .await
                 {
-                    error!(error = ?send_err, "Failed to send control error response");
+                    self.send_error(
+                        functionality,
+                        &format!("Failed to send control error response: {send_err}"),
+                    );
                 }
             }
         }
@@ -104,10 +116,14 @@ impl Backend {
                         "address": req.address,
                         "message": format!("GUI address updated to {}", req.address)
                     });
-                    if let Err(err) =
-                        functionality.send_message(MSG_GUI_ADDRESS_RESULT, &payload.to_string())
+                    if let Err(err) = self
+                        .send_json_message(functionality, MSG_GUI_ADDRESS_RESULT, &payload)
+                        .await
                     {
-                        error!(error = ?err, "Failed to send GUI address result");
+                        self.send_error(
+                            functionality,
+                            &format!("Failed to send GUI address result: {err}"),
+                        );
                     }
                     self.send_status(functionality, "gui-address-change").await;
                 }
@@ -117,10 +133,14 @@ impl Backend {
                         "address": req.address,
                         "message": format!("Failed to update GUI address: {}", err)
                     });
-                    if let Err(send_err) =
-                        functionality.send_message(MSG_GUI_ADDRESS_RESULT, &payload.to_string())
+                    if let Err(send_err) = self
+                        .send_json_message(functionality, MSG_GUI_ADDRESS_RESULT, &payload)
+                        .await
                     {
-                        error!(error = ?send_err, "Failed to send GUI address error");
+                        self.send_error(
+                            functionality,
+                            &format!("Failed to send GUI address error: {send_err}"),
+                        );
                     }
                 }
             }

@@ -1,6 +1,6 @@
-import QtQuick 2.5
-import QtQuick.Controls 2.5
-import QtQuick.Layouts 1.3
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
 
 Rectangle {
     id: overlay
@@ -264,7 +264,7 @@ Rectangle {
                         Layout.alignment: Qt.AlignVCenter
                         Layout.rightMargin: 30
                         
-                        onToggled: {
+                        onClicked: {
                             overlay.autostartToggleRequested(checked)
                         }
                     }
@@ -314,7 +314,7 @@ Rectangle {
                         Layout.alignment: Qt.AlignVCenter
                         Layout.rightMargin: 30
                         
-                        onToggled: {
+                        onClicked: {
                             const newAddress = checked ? "0.0.0.0:8384" : "127.0.0.1:8384"
                             overlay.guiAddressToggleRequested(newAddress)
                         }

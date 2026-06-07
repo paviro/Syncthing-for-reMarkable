@@ -1,6 +1,7 @@
 use chrono::Utc;
 use std::env;
 use tokio::fs;
+use xml::reader::{EventReader, XmlEvent};
 
 use crate::config::Config;
 use crate::types::MonitorError;
@@ -50,14 +51,72 @@ pub async fn load_api_key(config: &Config) -> Result<String, MonitorError> {
     let contents = fs::read_to_string(&config_xml_path)
         .await
         .map_err(MonitorError::Io)?;
-    extract_api_key(&contents).ok_or(MonitorError::MissingApiKey)
+    extract_api_key(&contents)?.ok_or(MonitorError::MissingApiKey)
 }
 
-fn extract_api_key(contents: &str) -> Option<String> {
-    let start_tag = "<apikey>";
-    let end_tag = "</apikey>";
-    let start = contents.find(start_tag)? + start_tag.len();
-    let rest = &contents[start..];
-    let end = rest.find(end_tag)?;
-    Some(rest[..end].trim().to_string())
+fn extract_api_key(contents: &str) -> Result<Option<String>, MonitorError> {
+    let parser = EventReader::new(contents.as_bytes());
+    let mut path: Vec<String> = Vec::new();
+
+    for event in parser {
+        match event.map_err(|err| MonitorError::Config(format!("Invalid Syncthing XML: {err}")))? {
+            XmlEvent::StartElement { name, .. } => path.push(name.local_name),
+            XmlEvent::EndElement { .. } => {
+                path.pop();
+            }
+            XmlEvent::Characters(text) | XmlEvent::CData(text) if is_gui_api_key_path(&path) => {
+                let trimmed = text.trim();
+                if !trimmed.is_empty() {
+                    return Ok(Some(trimmed.to_string()));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Ok(None)
+}
+
+fn is_gui_api_key_path(path: &[String]) -> bool {
+    path.len() == 3 && path[0] == "configuration" && path[1] == "gui" && path[2] == "apikey"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extracts_api_key_from_configuration_gui_path() {
+        let xml = r#"
+            <configuration>
+                <folder>
+                    <apikey>wrong</apikey>
+                </folder>
+                <gui>
+                    <apikey> expected-key </apikey>
+                </gui>
+            </configuration>
+        "#;
+
+        assert_eq!(
+            extract_api_key(xml).expect("parse xml"),
+            Some("expected-key".to_string())
+        );
+    }
+
+    #[test]
+    fn ignores_api_key_outside_gui_config() {
+        let xml = r#"
+            <configuration>
+                <apikey>wrong</apikey>
+            </configuration>
+        "#;
+
+        assert_eq!(extract_api_key(xml).expect("parse xml"), None);
+    }
+
+    #[test]
+    fn rejects_invalid_xml() {
+        assert!(extract_api_key("<configuration><gui>").is_err());
+    }
 }

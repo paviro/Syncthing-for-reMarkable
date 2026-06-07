@@ -1,9 +1,9 @@
-use appload_client::BackendReplier;
 use tokio::time::{sleep, Duration, Instant};
 use tracing::warn;
 
 use crate::config::Config;
 use crate::syncthing_client::SyncthingClient;
+use appload_client::BackendReplier;
 
 use super::protocol::{
     EVENT_HEARTBEAT_SECS, EVENT_RECONNECT_DELAY_SECS, EVENT_STREAM_TIMEOUT_SECS,

@@ -13,7 +13,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "2.0"
-tokio = { version = "1.48", features = ["macros", "rt-multi-thread", "process", "fs", "time"] }
+tokio = { version = "1.48", features = ["macros", "rt-multi-thread", "process", "fs", "time", "sync", "io-util"] }
 flate2 = "1.1"
 tar = "0.4"
 semver = "1.0"
@@ -21,3 +21,4 @@ zip = "6.0"
 tempfile = "3.23"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+xml-rs = "1.0"

@@ -1,5 +1,5 @@
-import QtQuick 2.5
-import QtQuick.Layouts 1.3
+import QtQuick
+import QtQuick.Layouts
 
 Item {
     id: installerPage

@@ -6,8 +6,8 @@ mod status_builder;
 
 pub use protocol::{ControlRequest, GuiAddressToggleRequest};
 
-use appload_client::{AppLoadBackend, BackendReplier, Message};
 use async_trait::async_trait;
+use serde::Serialize;
 use serde_json::json;
 use tokio::task::JoinHandle;
 use tracing::error;
@@ -15,28 +15,45 @@ use tracing::error;
 use crate::config::Config;
 use crate::deployment::{Installer, Updater};
 use crate::syncthing_client::{SyncthingClient, SyncthingUpgradeCheck};
+use crate::types::MonitorError;
+use appload_client::{AppLoadBackend, BackendReplier, Message};
 
 use self::protocol::*;
+
+#[derive(Debug, Default)]
+pub struct InstallerFlowState {
+    pub in_progress: bool,
+    pub progress_message: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Default)]
+pub struct AppUpdateFlowState {
+    pub in_progress: bool,
+    pub progress_message: Option<String>,
+    pub error: Option<String>,
+    pub pending_update_url: Option<String>,
+    pub pending_restart: bool,
+    pub restart_seconds_remaining: Option<u32>,
+}
+
+#[derive(Debug, Default)]
+pub struct SyncthingUpdateFlowState {
+    pub check_result: Option<SyncthingUpgradeCheck>,
+    pub in_progress: bool,
+    pub progress_message: Option<String>,
+    pub error: Option<String>,
+    pub upgrade_started: bool,
+}
 
 pub struct Backend {
     pub client: Option<SyncthingClient>,
     pub config: Config,
     pub installer: Installer,
-    pub install_in_progress: bool,
-    pub install_progress_message: Option<String>,
-    pub install_error: Option<String>,
+    pub installer_state: InstallerFlowState,
     pub updater: Updater,
-    pub update_in_progress: bool,
-    pub update_progress_message: Option<String>,
-    pub update_error: Option<String>,
-    pub pending_update_url: Option<String>,
-    pub update_pending_restart: bool,
-    pub update_restart_seconds_remaining: Option<u32>,
-    pub syncthing_update_check_result: Option<SyncthingUpgradeCheck>,
-    pub syncthing_update_in_progress: bool,
-    pub syncthing_update_progress_message: Option<String>,
-    pub syncthing_update_error: Option<String>,
-    pub syncthing_update_started: bool,
+    pub update_state: AppUpdateFlowState,
+    pub syncthing_update_state: SyncthingUpdateFlowState,
     pub realtime_task: Option<JoinHandle<()>>,
     pub systemd_monitor_task: Option<JoinHandle<()>>,
 }
@@ -50,21 +67,10 @@ impl Backend {
             client,
             config,
             installer,
-            install_in_progress: false,
-            install_progress_message: None,
-            install_error: None,
+            installer_state: InstallerFlowState::default(),
             updater,
-            update_in_progress: false,
-            update_progress_message: None,
-            update_error: None,
-            pending_update_url: None,
-            update_pending_restart: false,
-            update_restart_seconds_remaining: None,
-            syncthing_update_check_result: None,
-            syncthing_update_in_progress: false,
-            syncthing_update_progress_message: None,
-            syncthing_update_error: None,
-            syncthing_update_started: false,
+            update_state: AppUpdateFlowState::default(),
+            syncthing_update_state: SyncthingUpdateFlowState::default(),
             realtime_task: None,
             systemd_monitor_task: None,
         }
@@ -73,21 +79,51 @@ impl Backend {
     pub async fn send_status(&mut self, functionality: &BackendReplier<Self>, reason: &str) {
         let snapshot =
             status_builder::build_status_payload(&self.config, &mut self.client, reason).await;
-        match serde_json::to_string(&snapshot) {
-            Ok(payload) => {
-                if let Err(err) = functionality.send_message(MSG_STATUS_UPDATE, &payload) {
-                    error!(error = ?err, "Failed to send status update");
-                }
-            }
-            Err(err) => self.send_error(functionality, &format!("Failed to encode payload: {err}")),
+        if let Err(err) = self
+            .send_json_message(functionality, MSG_STATUS_UPDATE, &snapshot)
+            .await
+        {
+            self.send_error(
+                functionality,
+                &format!("Failed to send status update: {err}"),
+            );
         }
     }
 
     pub fn send_error(&self, functionality: &BackendReplier<Self>, message: &str) {
         let payload = json!({ "message": message });
-        if let Err(err) = functionality.send_message(MSG_ERROR, &payload.to_string()) {
+        if let Err(err) = self.send_json_message_sync(functionality, MSG_ERROR, &payload) {
             error!(error = ?err, "Failed to send error message");
         }
+    }
+
+    pub async fn send_json_message<T>(
+        &self,
+        functionality: &BackendReplier<Self>,
+        msg_type: u32,
+        payload: &T,
+    ) -> Result<(), MonitorError>
+    where
+        T: Serialize + ?Sized,
+    {
+        self.send_json_message_sync(functionality, msg_type, payload)
+    }
+
+    pub fn send_json_message_sync<T>(
+        &self,
+        functionality: &BackendReplier<Self>,
+        msg_type: u32,
+        payload: &T,
+    ) -> Result<(), MonitorError>
+    where
+        T: Serialize + ?Sized,
+    {
+        let contents = serde_json::to_string(payload)?;
+        functionality
+            .send_message(msg_type, &contents)
+            .map_err(|err| {
+                MonitorError::Config(format!("Failed to send message {msg_type}: {err:?}"))
+            })
     }
 }
 
@@ -111,15 +147,15 @@ impl AppLoadBackend for Backend {
             }
             MSG_INSTALL_TRIGGER => {
                 if self.config.disable_syncthing_installer {
-                    self.install_error = Some(
+                    self.installer_state.error = Some(
                         "Installer disabled via config. Please install Syncthing manually."
                             .to_string(),
                     );
-                    self.install_progress_message = None;
-                    self.install_in_progress = false;
+                    self.installer_state.progress_message = None;
+                    self.installer_state.in_progress = false;
                     self.send_install_status(functionality).await;
-                } else if self.install_in_progress {
-                    self.install_progress_message =
+                } else if self.installer_state.in_progress {
+                    self.installer_state.progress_message =
                         Some("Installer is already running...".to_string());
                     self.send_install_status(functionality).await;
                 } else {

@@ -38,23 +38,41 @@ impl SyncthingClient {
             base_urls.push("http://127.0.0.1:8384".to_string());
         }
 
-        // Standard client for normal API requests (10s timeout)
+        // Standard clients for normal API requests (5s timeout).
         let http_client = Client::builder()
+            .timeout(Duration::from_secs(5))
+            .build()
+            .map_err(MonitorError::Http)?;
+        let loopback_insecure_http_client = Client::builder()
             .timeout(Duration::from_secs(5))
             .danger_accept_invalid_certs(true)
             .build()
             .map_err(MonitorError::Http)?;
 
-        // Long-polling client for event stream (60s timeout to support 30s events)
+        // Long-polling clients for event stream (60s timeout to support 30s events).
         let longpoll_client = Client::builder()
+            .timeout(Duration::from_secs(60))
+            .build()
+            .map_err(MonitorError::Http)?;
+        let loopback_insecure_longpoll_client = Client::builder()
             .timeout(Duration::from_secs(60))
             .danger_accept_invalid_certs(true)
             .build()
             .map_err(MonitorError::Http)?;
 
         Ok(Self {
-            http: HttpClient::new(api_key.clone(), http_client, base_urls.clone()),
-            http_longpoll: HttpClient::new(api_key, longpoll_client, base_urls),
+            http: HttpClient::new(
+                api_key.clone(),
+                http_client,
+                loopback_insecure_http_client,
+                base_urls.clone(),
+            ),
+            http_longpoll: HttpClient::new(
+                api_key,
+                longpoll_client,
+                loopback_insecure_longpoll_client,
+                base_urls,
+            ),
         })
     }
 
@@ -113,17 +131,21 @@ impl SyncthingClient {
     pub async fn set_gui_address(&mut self, new_address: &str) -> Result<(), MonitorError> {
         let mut config: Value = self.http.get_json("/rest/config").await?;
 
-        // Update the GUI address
-        if let Some(gui) = config.get_mut("gui") {
-            if let Some(gui_obj) = gui.as_object_mut() {
-                gui_obj.insert(
-                    "address".to_string(),
-                    Value::String(new_address.to_string()),
-                );
-            }
-        }
+        let gui_obj = config
+            .get_mut("gui")
+            .and_then(Value::as_object_mut)
+            .ok_or_else(|| {
+                MonitorError::Syncthing(
+                    "Cannot update GUI address because /rest/config has no GUI object".to_string(),
+                )
+            })?;
 
-        self.http.put_json("rest/config", &config).await
+        gui_obj.insert(
+            "address".to_string(),
+            Value::String(new_address.to_string()),
+        );
+
+        self.http.put_json("/rest/config", &config).await
     }
 
     /// Restarts Syncthing via the API.

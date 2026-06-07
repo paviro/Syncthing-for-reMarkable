@@ -28,3 +28,68 @@ pub const EVENT_STREAM_TIMEOUT_SECS: u64 = 30;
 pub const EVENT_HEARTBEAT_SECS: u64 = 5;
 pub const EVENT_RECONNECT_DELAY_SECS: u64 = 5;
 pub const SYSTEMD_MONITOR_INTERVAL_SECS: u64 = 5;
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    use super::*;
+
+    #[test]
+    fn qml_message_constants_match_backend_protocol() {
+        let qml_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../ui/main.qml");
+        let qml = std::fs::read_to_string(&qml_path).expect("read main.qml");
+        let qml_constants = parse_qml_message_constants(&qml);
+
+        let expected = [
+            ("msgControlRequest", MSG_CONTROL_REQUEST),
+            ("msgInstallTrigger", MSG_INSTALL_TRIGGER),
+            ("msgGuiAddressToggle", MSG_GUI_ADDRESS_TOGGLE),
+            ("msgUpdateCheckRequest", MSG_UPDATE_CHECK_REQUEST),
+            ("msgUpdateDownloadRequest", MSG_UPDATE_DOWNLOAD_REQUEST),
+            ("msgUpdateRestartRequest", MSG_UPDATE_RESTART_REQUEST),
+            (
+                "msgSyncthingUpdateCheckRequest",
+                MSG_SYNCTHING_UPDATE_CHECK_REQUEST,
+            ),
+            (
+                "msgSyncthingUpdateInstallRequest",
+                MSG_SYNCTHING_UPDATE_INSTALL_REQUEST,
+            ),
+            ("msgStatusUpdate", MSG_STATUS_UPDATE),
+            ("msgControlResult", MSG_CONTROL_RESULT),
+            ("msgInstallStatus", MSG_INSTALL_STATUS),
+            ("msgGuiAddressResult", MSG_GUI_ADDRESS_RESULT),
+            ("msgUpdateCheckResult", MSG_UPDATE_CHECK_RESULT),
+            ("msgUpdateDownloadStatus", MSG_UPDATE_DOWNLOAD_STATUS),
+            (
+                "msgSyncthingUpdateCheckResult",
+                MSG_SYNCTHING_UPDATE_CHECK_RESULT,
+            ),
+            ("msgSyncthingUpdateStatus", MSG_SYNCTHING_UPDATE_STATUS),
+            ("msgError", MSG_ERROR),
+        ];
+
+        for (name, value) in expected {
+            assert_eq!(
+                qml_constants.get(name).copied(),
+                Some(value),
+                "QML constant {name} drifted from backend"
+            );
+        }
+    }
+
+    fn parse_qml_message_constants(qml: &str) -> HashMap<String, u32> {
+        qml.lines()
+            .filter_map(|line| {
+                let trimmed = line.trim();
+                let rest = trimmed.strip_prefix("readonly property int ")?;
+                let mut parts = rest.split(':');
+                let name = parts.next()?.trim();
+                let value = parts.next()?.trim().parse::<u32>().ok()?;
+                Some((name.to_string(), value))
+            })
+            .collect()
+    }
+}

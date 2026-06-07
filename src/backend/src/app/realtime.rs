@@ -1,5 +1,6 @@
-use appload_client::BackendReplier;
 use tokio::task::JoinHandle;
+
+use appload_client::BackendReplier;
 
 use super::event_stream;
 use super::protocol::SYSTEMD_MONITOR_INTERVAL_SECS;

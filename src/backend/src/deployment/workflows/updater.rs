@@ -58,13 +58,8 @@ impl Updater {
         let latest_version = release.tag_name.trim_start_matches('v').to_string();
         let update_available = self.compare_versions(&current_version, &latest_version)?;
 
-        let download_url = if update_available {
-            let asset_name = self.get_asset_name_for_arch(architecture);
-            assets::select_asset_exact(&release.assets, &asset_name)
-                .map(|asset| asset.browser_download_url.clone())
-        } else {
-            None
-        };
+        let download_url =
+            self.select_update_download_url(&release.assets, architecture, update_available)?;
 
         Ok(UpdateCheckResult {
             current_version,
@@ -93,6 +88,26 @@ impl Updater {
         }
     }
 
+    fn select_update_download_url(
+        &self,
+        release_assets: &[assets::ReleaseAsset],
+        architecture: Architecture,
+        update_available: bool,
+    ) -> Result<Option<String>, MonitorError> {
+        if !update_available {
+            return Ok(None);
+        }
+
+        let asset_name = self.get_asset_name_for_arch(architecture);
+        assets::select_asset_exact(release_assets, &asset_name)
+            .map(|asset| Some(asset.browser_download_url.clone()))
+            .ok_or_else(|| {
+                MonitorError::Config(format!(
+                    "A newer app release is available, but it does not contain the expected asset: {asset_name}"
+                ))
+            })
+    }
+
     pub async fn download_and_apply_update(
         &self,
         download_url: &str,
@@ -119,6 +134,7 @@ impl Updater {
         dest_dir: &Path,
     ) -> Result<(), MonitorError> {
         let payload_root = self.resolve_payload_root(source_dir).await?;
+        self.validate_update_payload(&payload_root).await?;
         let mut entries = fs::read_dir(&payload_root).await?;
 
         while let Some(entry) = entries.next_entry().await? {
@@ -138,6 +154,49 @@ impl Updater {
                 self.copy_dir_recursive(&path, &dest_path).await?;
             } else if file_type.is_file() {
                 self.copy_file_atomic(&path, &dest_path).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn validate_update_payload(&self, payload_root: &Path) -> Result<(), MonitorError> {
+        for relative_path in ["manifest.json", "resources.rcc", "icon.png"] {
+            let path = payload_root.join(relative_path);
+            let metadata = fs::metadata(&path).await.map_err(|err| {
+                MonitorError::Config(format!(
+                    "Downloaded update is missing required file {}: {}",
+                    relative_path, err
+                ))
+            })?;
+            if !metadata.is_file() {
+                return Err(MonitorError::Config(format!(
+                    "Downloaded update required path is not a file: {}",
+                    relative_path
+                )));
+            }
+        }
+
+        let entry_path = payload_root.join("backend").join("entry");
+        let metadata = fs::metadata(&entry_path).await.map_err(|err| {
+            MonitorError::Config(format!(
+                "Downloaded update is missing required backend/entry executable: {}",
+                err
+            ))
+        })?;
+        if !metadata.is_file() {
+            return Err(MonitorError::Config(
+                "Downloaded update backend/entry is not a file".to_string(),
+            ));
+        }
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if metadata.permissions().mode() & 0o111 == 0 {
+                return Err(MonitorError::Config(
+                    "Downloaded update backend/entry is not executable".to_string(),
+                ));
             }
         }
 
@@ -226,10 +285,13 @@ impl Updater {
             }
         }
 
+        let source_permissions = fs::metadata(source).await?.permissions();
         let tmp_path = self.temp_path_for(dest);
         fs::copy(source, &tmp_path).await?;
+        fs::set_permissions(&tmp_path, source_permissions.clone()).await?;
         match fs::rename(&tmp_path, dest).await {
             Ok(_) => {
+                fs::set_permissions(dest, source_permissions).await?;
                 info!(path = %dest.display(), "Updated file");
                 Ok(())
             }
@@ -247,5 +309,97 @@ impl Updater {
             .map(|name| format!("{}.tmp-update", name))
             .unwrap_or_else(|| "tmp-update-file".to_string());
         dest.with_file_name(file_name)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn updater() -> Updater {
+        Updater::new()
+    }
+
+    #[test]
+    fn update_check_errors_when_newer_release_lacks_arch_asset() {
+        let updater = updater();
+        let assets = vec![assets::ReleaseAsset {
+            name: "syncthing-rm-appload-armv7.zip".to_string(),
+            browser_download_url: "https://example.com/armv7.zip".to_string(),
+        }];
+
+        let result = updater.select_update_download_url(&assets, Architecture::Arm64, true);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn update_check_omits_download_url_when_no_update_is_available() {
+        let updater = updater();
+
+        let result = updater
+            .select_update_download_url(&[], Architecture::Arm64, false)
+            .expect("no update needs no asset");
+
+        assert_eq!(result, None);
+    }
+
+    #[tokio::test]
+    async fn validate_update_payload_requires_core_files() {
+        let updater = updater();
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        fs::write(temp_dir.path().join("manifest.json"), "{}")
+            .await
+            .expect("write manifest");
+
+        let result = updater.validate_update_payload(temp_dir.path()).await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn copy_update_preserves_backend_entry_executable_permission() {
+        let updater = updater();
+        let source = tempfile::tempdir().expect("create source dir");
+        let dest = tempfile::tempdir().expect("create destination dir");
+
+        fs::write(source.path().join("manifest.json"), "{}")
+            .await
+            .expect("write manifest");
+        fs::write(source.path().join("resources.rcc"), b"resources")
+            .await
+            .expect("write resources");
+        fs::write(source.path().join("icon.png"), b"icon")
+            .await
+            .expect("write icon");
+        fs::create_dir_all(source.path().join("backend"))
+            .await
+            .expect("create backend dir");
+        let entry = source.path().join("backend").join("entry");
+        fs::write(&entry, b"entry").await.expect("write entry");
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&entry, std::fs::Permissions::from_mode(0o755))
+                .await
+                .expect("set executable permission");
+        }
+
+        updater
+            .copy_update_files(source.path(), dest.path())
+            .await
+            .expect("copy update");
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = fs::metadata(dest.path().join("backend").join("entry"))
+                .await
+                .expect("read copied entry metadata")
+                .permissions()
+                .mode();
+            assert_ne!(mode & 0o111, 0);
+        }
     }
 }
