@@ -144,29 +144,21 @@ If you cannot use Vellum, you can install the prerequisites manually:
 
 ## Accessing the Syncthing Web Interface
 
-### Via USB Connection (Default)
-
-When your reMarkable device is connected via USB, you can access the Syncthing web interface at:
-
-```
-http://10.11.99.1:8384
-```
-
-Simply open this URL in your web browser while your device is connected.
-
-### Via Network (Optional)
-
-To access Syncthing over your local network:
+To access Syncthing over your local network (or USB):
 
 1. Open the Syncthing app on your reMarkable
-2. Tap the **gear icon** (⚙️) at the top right to open Settings
+2. Tap the **Settings** button
 3. Enable **Network Access**
 4. Access the web interface using your device's IP address:
    ```
    http://<device-ip>:8384
    ```
-   
    Replace `<device-ip>` with your reMarkable's IP address on your local network.
+   
+   or via the USB IP address:
+   ```
+   http://10.11.99.1:8384
+   ```
 
 > **⚠️ Security Note:** When enabling network access, it's strongly recommended to:
 > - **Set a password** in the Syncthing web interface (Settings → GUI → GUI Authentication)
