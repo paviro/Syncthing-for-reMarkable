@@ -3,6 +3,8 @@ set -eu
 
 cd "$(dirname "$0")/src/backend"
 
+qmllint --disable-plugins all --resource ../application.qrc --import disable --missing-type disable ../ui/*.qml
+
 cargo fmt --check
 
 for target in aarch64-unknown-linux-gnu armv7-unknown-linux-gnueabihf; do
