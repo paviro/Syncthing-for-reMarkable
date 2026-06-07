@@ -14,4 +14,3 @@ pub struct SystemdStatus {
     pub raw_excerpt: Option<String>,
     pub error: Option<String>,
 }
-

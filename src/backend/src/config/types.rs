@@ -30,4 +30,3 @@ fn default_service_name() -> String {
 fn default_config_dir() -> String {
     "/home/root/.config/syncthing".to_string()
 }
-

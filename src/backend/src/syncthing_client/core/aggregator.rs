@@ -54,7 +54,10 @@ impl<'a> DataAggregator<'a> {
             let query = FolderStatusQuery {
                 folder: folder.id.as_str(),
             };
-            let status: Value = self.http.get_json_with_query("/rest/db/status", &query).await?;
+            let status: Value = self
+                .http
+                .get_json_with_query("/rest/db/status", &query)
+                .await?;
             // Keep UI contract: a Vec, but only ever include the latest (0..1)
             let last_changes = latest_changes
                 .get(&folder.id)
@@ -101,7 +104,7 @@ impl<'a> DataAggregator<'a> {
             .http
             .get_json_with_query("/rest/events", &query)
             .await?;
-        events.sort_by(|a, b| b.id.cmp(&a.id));
+        events.sort_by_key(|event| std::cmp::Reverse(event.id));
 
         let mut changes: HashMap<String, FolderChange> = HashMap::new();
         for event in events {
@@ -169,16 +172,14 @@ impl<'a> DataAggregator<'a> {
                     Ok(remote_completion) => {
                         let need = remote_completion.need_bytes.unwrap_or(0);
                         if need > 0 {
-                            let entry = folder_summaries
-                                .entry(folder.id.clone())
-                                .or_insert_with(FolderPeerNeedSummary::default);
+                            let entry = folder_summaries.entry(folder.id.clone()).or_default();
                             entry.peer_count = entry.peer_count.saturating_add(1);
                             entry.need_bytes = entry.need_bytes.saturating_add(need);
                         }
 
                         peer_progress
                             .entry(device.device_id.clone())
-                            .or_insert_with(PeerProgress::default)
+                            .or_default()
                             .record(folder, &remote_completion);
                     }
                     Err(err) => {
@@ -238,7 +239,7 @@ impl<'a> DataAggregator<'a> {
             });
         }
 
-        peers.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        peers.sort_by_key(|peer| peer.name.to_lowercase());
         peers
     }
 
@@ -262,4 +263,3 @@ impl<'a> DataAggregator<'a> {
         self.http.get_json("/rest/system/connections").await
     }
 }
-

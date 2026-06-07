@@ -36,4 +36,3 @@ pub fn select_asset_by_prefix<'a>(
 pub fn select_asset_exact<'a>(assets: &'a [ReleaseAsset], name: &str) -> Option<&'a ReleaseAsset> {
     assets.iter().find(|asset| asset.name == name)
 }
-

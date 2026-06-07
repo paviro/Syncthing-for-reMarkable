@@ -5,7 +5,9 @@ use tracing::warn;
 use crate::config::Config;
 use crate::syncthing_client::SyncthingClient;
 
-use super::protocol::{EVENT_HEARTBEAT_SECS, EVENT_RECONNECT_DELAY_SECS, EVENT_STREAM_TIMEOUT_SECS};
+use super::protocol::{
+    EVENT_HEARTBEAT_SECS, EVENT_RECONNECT_DELAY_SECS, EVENT_STREAM_TIMEOUT_SECS,
+};
 use super::Backend;
 
 /// Drives the Syncthing event stream and orchestrates when to send status updates.
@@ -14,10 +16,7 @@ use super::Backend;
 /// - Event polling with automatic reconnection
 /// - Heartbeat timing (send status even without events)
 /// - Backend notification decisions
-pub async fn drive_syncthing_stream(
-    functionality: BackendReplier<Backend>,
-    config: Config,
-) {
+pub async fn drive_syncthing_stream(functionality: BackendReplier<Backend>, config: Config) {
     let mut client: Option<SyncthingClient> = None;
     let mut last_event_id: u64 = 0;
     let mut last_emit = Instant::now() - Duration::from_secs(EVENT_HEARTBEAT_SECS);
@@ -72,4 +71,3 @@ pub async fn drive_syncthing_stream(
         }
     }
 }
-

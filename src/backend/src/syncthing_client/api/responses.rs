@@ -12,4 +12,3 @@ pub struct EventWaitResult {
     pub last_event_id: u64,
     pub has_updates: bool,
 }
-

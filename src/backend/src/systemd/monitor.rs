@@ -37,4 +37,3 @@ where
         last_status = Some(status);
     }
 }
-

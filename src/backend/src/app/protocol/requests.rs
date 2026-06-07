@@ -11,4 +11,3 @@ pub struct ControlRequest {
 pub struct GuiAddressToggleRequest {
     pub address: String,
 }
-

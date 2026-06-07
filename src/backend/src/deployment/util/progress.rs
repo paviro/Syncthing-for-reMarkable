@@ -37,15 +37,10 @@ pub fn should_emit_download_progress(
         } else {
             false
         }
-    } else if progress
-        .downloaded_bytes
-        .saturating_sub(*last_bytes)
-        >= DOWNLOAD_PROGRESS_BYTE_STEP
-    {
+    } else if progress.downloaded_bytes.saturating_sub(*last_bytes) >= DOWNLOAD_PROGRESS_BYTE_STEP {
         *last_bytes = progress.downloaded_bytes;
         true
     } else {
         false
     }
 }
-

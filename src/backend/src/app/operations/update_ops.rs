@@ -3,10 +3,14 @@ use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 use tracing::{error, warn};
 
-use crate::deployment::{render_download_progress_message, should_emit_download_progress, UpdateStatus};
+use crate::deployment::{
+    render_download_progress_message, should_emit_download_progress, UpdateStatus,
+};
 use crate::types::MonitorError;
 
-use super::super::protocol::{MSG_UPDATE_CHECK_RESULT, MSG_UPDATE_DOWNLOAD_STATUS, UPDATE_RESTART_DELAY_SECS};
+use super::super::protocol::{
+    MSG_UPDATE_CHECK_RESULT, MSG_UPDATE_DOWNLOAD_STATUS, UPDATE_RESTART_DELAY_SECS,
+};
 use super::super::Backend;
 
 impl Backend {
@@ -67,9 +71,8 @@ impl Backend {
 
         let (progress_tx, mut progress_rx) = mpsc::channel(16);
         let updater = self.updater.clone();
-        let mut update_future = Box::pin(
-            updater.download_and_apply_update(&download_url, Some(progress_tx)),
-        );
+        let mut update_future =
+            Box::pin(updater.download_and_apply_update(&download_url, Some(progress_tx)));
         let mut update_result: Option<Result<(), MonitorError>> = None;
         let mut channel_open = true;
         let mut download_phase_reported_complete = false;
@@ -167,4 +170,3 @@ impl Backend {
         std::process::exit(0);
     }
 }
-

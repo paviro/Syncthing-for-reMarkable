@@ -7,15 +7,15 @@ use tokio::fs;
 use tokio::process::Command;
 use tracing::{error, warn};
 
-use crate::deployment::system::architecture::detect_architecture;
-use crate::deployment::system::archive;
 use crate::config::Config;
 use crate::deployment::http::assets::{self, ReleaseAsset};
 use crate::deployment::http::client::{default_request_timeout, github_client};
 use crate::deployment::http::download::download_to_path;
+use crate::deployment::system::architecture::detect_architecture;
+use crate::deployment::system::archive;
 use crate::deployment::DownloadProgressSender;
-use crate::utils::{filesystem, systemctl};
 use crate::types::MonitorError;
+use crate::utils::{filesystem, systemctl};
 
 const RELEASE_API_URL: &str = "https://api.github.com/repos/syncthing/syncthing/releases/latest";
 const TAR_EXTENSION: &str = ".tar.gz";
@@ -48,7 +48,12 @@ impl Installer {
 
     pub async fn service_installed(&self) -> bool {
         let service_name = &self.config.systemd_service_name;
-        match Command::new("systemctl").arg("cat").arg(service_name).output().await {
+        match Command::new("systemctl")
+            .arg("cat")
+            .arg(service_name)
+            .output()
+            .await
+        {
             Ok(output) => output.status.success(),
             Err(err) => {
                 error!(service = service_name, error = ?err, "Failed to query systemd unit");
@@ -177,4 +182,3 @@ WantedBy=multi-user.target
         )
     }
 }
-

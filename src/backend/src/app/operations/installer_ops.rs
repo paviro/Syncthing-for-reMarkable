@@ -44,8 +44,7 @@ impl Backend {
             self.send_install_status(functionality).await;
             let (progress_tx, mut progress_rx) = mpsc::channel(16);
             let installer = self.installer.clone();
-            let mut download_future =
-                Box::pin(installer.download_latest_binary(Some(progress_tx)));
+            let mut download_future = Box::pin(installer.download_latest_binary(Some(progress_tx)));
             let mut download_result: Option<Result<(), MonitorError>> = None;
             let mut channel_open = true;
             let mut last_percent_reported: Option<u8> = None;
@@ -123,4 +122,3 @@ impl Backend {
         self.send_install_status(functionality).await;
     }
 }
-

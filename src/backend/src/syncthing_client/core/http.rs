@@ -64,7 +64,11 @@ impl HttpClient {
         T: Serialize,
     {
         let base = &self.base_urls[self.current_idx.min(self.base_urls.len().saturating_sub(1))];
-        let url = format!("{}/{}", base.trim_end_matches('/'), path.trim_start_matches('/'));
+        let url = format!(
+            "{}/{}",
+            base.trim_end_matches('/'),
+            path.trim_start_matches('/')
+        );
 
         let response = self
             .http
@@ -90,7 +94,11 @@ impl HttpClient {
     /// Performs a POST request with an empty body.
     pub async fn post(&mut self, path: &str) -> Result<(), MonitorError> {
         let base = &self.base_urls[self.current_idx.min(self.base_urls.len().saturating_sub(1))];
-        let url = format!("{}/{}", base.trim_end_matches('/'), path.trim_start_matches('/'));
+        let url = format!(
+            "{}/{}",
+            base.trim_end_matches('/'),
+            path.trim_start_matches('/')
+        );
 
         let response = self
             .http
@@ -121,4 +129,3 @@ impl HttpClient {
         }
     }
 }
-

@@ -57,4 +57,3 @@ pub(super) fn get_config_path() -> Result<PathBuf, MonitorError> {
     warn!("Using fallback: looking for config.json in current directory");
     Ok(PathBuf::from("config.json"))
 }
-

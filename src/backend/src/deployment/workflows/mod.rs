@@ -2,4 +2,3 @@
 
 pub mod installer;
 pub mod updater;
-

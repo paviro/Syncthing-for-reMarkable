@@ -19,17 +19,13 @@ impl Backend {
             let config = self.config.clone();
             let replier = functionality.clone();
             self.systemd_monitor_task = Some(tokio::spawn(async move {
-                crate::systemd::monitor_service(
-                    config,
-                    SYSTEMD_MONITOR_INTERVAL_SECS,
-                    move || {
-                        let replier = replier.clone();
-                        tokio::spawn(async move {
-                            let mut backend = replier.backend.lock().await;
-                            backend.send_status(&replier, "systemd-monitor").await;
-                        });
-                    },
-                )
+                crate::systemd::monitor_service(config, SYSTEMD_MONITOR_INTERVAL_SECS, move || {
+                    let replier = replier.clone();
+                    tokio::spawn(async move {
+                        let mut backend = replier.backend.lock().await;
+                        backend.send_status(&replier, "systemd-monitor").await;
+                    });
+                })
                 .await;
             }));
         }
@@ -42,4 +38,3 @@ fn task_is_running(handle: &Option<JoinHandle<()>>) -> bool {
         .map(|handle| !handle.is_finished())
         .unwrap_or(false)
 }
-

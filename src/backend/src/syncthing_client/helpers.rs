@@ -49,7 +49,7 @@ pub async fn load_api_key(config: &Config) -> Result<String, MonitorError> {
     let config_xml_path = config.syncthing_config_xml_path();
     let contents = fs::read_to_string(&config_xml_path)
         .await
-        .map_err(|err| MonitorError::Io(err))?;
+        .map_err(MonitorError::Io)?;
     extract_api_key(&contents).ok_or(MonitorError::MissingApiKey)
 }
 

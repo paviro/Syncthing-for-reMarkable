@@ -4,9 +4,10 @@ use serde_json::Value;
 use crate::syncthing_client::api::FolderConfig;
 
 /// Represents the current state of a folder in a human-readable format.
-#[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum FolderStateCode {
+    #[default]
     Unknown,
     Paused,
     Error,
@@ -17,12 +18,6 @@ pub enum FolderStateCode {
     Syncing,
     PendingChanges,
     UpToDate,
-}
-
-impl Default for FolderStateCode {
-    fn default() -> Self {
-        FolderStateCode::Unknown
-    }
 }
 
 /// Complete folder information for UI display.
@@ -168,4 +163,3 @@ fn humanize_folder_state(
         FolderStateInfo::new("Unknown state", FolderStateCode::Unknown)
     }
 }
-

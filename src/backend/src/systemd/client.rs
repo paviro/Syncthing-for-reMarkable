@@ -4,8 +4,8 @@ use tokio::process::Command;
 use tracing::{error, warn};
 
 use crate::config::Config;
-use crate::utils::{filesystem, systemctl};
 use crate::types::MonitorError;
+use crate::utils::{filesystem, systemctl};
 
 use super::actions::ServiceAction;
 use super::types::SystemdStatus;
@@ -81,7 +81,7 @@ impl<'a> SystemdClient<'a> {
     /// Control the systemd service (start, stop, restart, enable, disable)
     pub async fn control_service(&self, action: ServiceAction) -> Result<String, MonitorError> {
         let success_message = format!("{} {}", self.service_name, action.past_tense());
-        
+
         if action.needs_remount() {
             // Remount filesystem as read-write, track if it was read-only before
             let was_readonly = filesystem::remount_root_rw().await?;
@@ -106,7 +106,8 @@ impl<'a> SystemdClient<'a> {
 
             result
         } else {
-            systemctl::execute_with_message(&[action.as_str(), self.service_name], success_message).await
+            systemctl::execute_with_message(&[action.as_str(), self.service_name], success_message)
+                .await
         }
     }
 }
@@ -137,4 +138,3 @@ fn parse_systemctl_show(bytes: &[u8]) -> Result<HashMap<String, String>, Monitor
     }
     Ok(map)
 }
-

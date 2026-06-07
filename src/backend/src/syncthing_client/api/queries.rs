@@ -25,4 +25,3 @@ pub struct CompletionQuery<'a> {
     pub device: &'a str,
     pub folder: &'a str,
 }
-

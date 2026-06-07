@@ -2,8 +2,8 @@ use serde::Serialize;
 use thiserror::Error;
 
 // Re-export types from other modules for convenience
-pub use crate::systemd::SystemdStatus;
 pub use crate::syncthing_client::{FolderPayload, PeerPayload, SyncthingOverview};
+pub use crate::systemd::SystemdStatus;
 
 #[derive(Debug, Error)]
 pub enum MonitorError {
@@ -33,4 +33,3 @@ pub struct StatusPayload {
     pub peers: Vec<PeerPayload>,
     pub gui_address: Option<String>,
 }
-

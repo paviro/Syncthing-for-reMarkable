@@ -2,8 +2,8 @@ use appload_client::BackendReplier;
 use serde_json::json;
 use tracing::{error, info, warn};
 
-use crate::systemd::{control_service, ServiceAction};
 use crate::syncthing_client::SyncthingClient;
+use crate::systemd::{control_service, ServiceAction};
 
 use super::super::protocol::{
     ControlRequest, GuiAddressToggleRequest, MSG_CONTROL_RESULT, MSG_GUI_ADDRESS_RESULT,
@@ -104,8 +104,8 @@ impl Backend {
                         "address": req.address,
                         "message": format!("GUI address updated to {}", req.address)
                     });
-                    if let Err(err) = functionality
-                        .send_message(MSG_GUI_ADDRESS_RESULT, &payload.to_string())
+                    if let Err(err) =
+                        functionality.send_message(MSG_GUI_ADDRESS_RESULT, &payload.to_string())
                     {
                         error!(error = ?err, "Failed to send GUI address result");
                     }
@@ -117,8 +117,8 @@ impl Backend {
                         "address": req.address,
                         "message": format!("Failed to update GUI address: {}", err)
                     });
-                    if let Err(send_err) = functionality
-                        .send_message(MSG_GUI_ADDRESS_RESULT, &payload.to_string())
+                    if let Err(send_err) =
+                        functionality.send_message(MSG_GUI_ADDRESS_RESULT, &payload.to_string())
                     {
                         error!(error = ?send_err, "Failed to send GUI address error");
                     }
@@ -129,4 +129,3 @@ impl Backend {
         }
     }
 }
-

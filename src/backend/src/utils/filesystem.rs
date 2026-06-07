@@ -8,8 +8,7 @@ async fn is_root_readonly() -> Result<bool, MonitorError> {
     let output = Command::new("mount").output().await?;
 
     if !output.status.success() {
-        return Err(MonitorError::Io(std::io::Error::new(
-            std::io::ErrorKind::Other,
+        return Err(MonitorError::Io(std::io::Error::other(
             "Failed to query mount status",
         )));
     }
@@ -41,16 +40,16 @@ pub async fn remount_root_rw() -> Result<bool, MonitorError> {
 
     if was_readonly {
         let output = Command::new("mount")
-            .args(&["-o", "remount,rw", "/"])
+            .args(["-o", "remount,rw", "/"])
             .output()
             .await?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            return Err(MonitorError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to remount / as rw: {}", stderr),
-            )));
+            return Err(MonitorError::Io(std::io::Error::other(format!(
+                "Failed to remount / as rw: {}",
+                stderr
+            ))));
         }
     }
 
@@ -65,7 +64,7 @@ pub async fn restore_mounts_if_needed(should_restore: bool) -> Result<(), Monito
 
     {
         let output = Command::new("mount")
-            .args(&["-o", "remount,ro", "/"])
+            .args(["-o", "remount,ro", "/"])
             .output()
             .await;
 
@@ -73,10 +72,10 @@ pub async fn restore_mounts_if_needed(should_restore: bool) -> Result<(), Monito
             Ok(out) if out.status.success() => Ok(()),
             Ok(out) => {
                 let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
-                Err(MonitorError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("Failed to remount / as ro: {}", stderr),
-                )))
+                Err(MonitorError::Io(std::io::Error::other(format!(
+                    "Failed to remount / as ro: {}",
+                    stderr
+                ))))
             }
             Err(err) => Err(MonitorError::Io(err)),
         }
@@ -88,7 +87,7 @@ pub async fn restore_mounts_if_needed(should_restore: bool) -> Result<(), Monito
 /// Reapply the /etc overlay mount used on reMarkable devices
 async fn remount_etc_overlay() -> Result<(), MonitorError> {
     let output = Command::new("mount")
-        .args(&[
+        .args([
             "-t",
             "overlay",
             "overlay",
@@ -108,10 +107,10 @@ async fn remount_etc_overlay() -> Result<(), MonitorError> {
                 info!("/etc overlay already mounted, skipping remount");
                 return Ok(());
             }
-            Err(MonitorError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to remount /etc overlay: {}", stderr),
-            )))
+            Err(MonitorError::Io(std::io::Error::other(format!(
+                "Failed to remount /etc overlay: {}",
+                stderr
+            ))))
         }
         Err(err) => Err(MonitorError::Io(err)),
     }
@@ -119,7 +118,7 @@ async fn remount_etc_overlay() -> Result<(), MonitorError> {
 
 /// Unmount /etc overlay if needed (reMarkable specific)
 pub async fn unmount_etc_if_needed() -> Result<(), MonitorError> {
-    let output = Command::new("umount").args(&["-R", "/etc"]).output().await;
+    let output = Command::new("umount").args(["-R", "/etc"]).output().await;
 
     match output {
         Ok(out) if out.status.success() => Ok(()),
@@ -130,13 +129,12 @@ pub async fn unmount_etc_if_needed() -> Result<(), MonitorError> {
                 info!("/etc already unmounted, continuing");
                 Ok(())
             } else {
-                Err(MonitorError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("Failed to unmount /etc: {}", stderr),
-                )))
+                Err(MonitorError::Io(std::io::Error::other(format!(
+                    "Failed to unmount /etc: {}",
+                    stderr
+                ))))
             }
         }
         Err(err) => Err(MonitorError::Io(err)),
     }
 }
-

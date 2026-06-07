@@ -35,4 +35,3 @@ impl ServiceAction {
         matches!(self, ServiceAction::Enable | ServiceAction::Disable)
     }
 }
-

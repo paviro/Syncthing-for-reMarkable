@@ -66,4 +66,3 @@ async fn ensure_client<'a>(
     }
     Ok(client_slot.as_mut().expect("client was just initialized"))
 }
-

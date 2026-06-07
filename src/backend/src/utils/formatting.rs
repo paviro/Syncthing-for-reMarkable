@@ -18,4 +18,3 @@ pub fn format_bytes(bytes: u64) -> String {
         format!("{value:.1} {}", UNITS[unit_index])
     }
 }
-

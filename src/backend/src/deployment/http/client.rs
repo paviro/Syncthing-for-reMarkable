@@ -34,4 +34,3 @@ pub fn github_client(timeout: Duration) -> Result<Client, MonitorError> {
 pub fn default_request_timeout() -> Duration {
     Duration::from_secs(REQUEST_TIMEOUT_SECS)
 }
-

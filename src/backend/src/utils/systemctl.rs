@@ -8,7 +8,7 @@ use crate::types::MonitorError;
 /// Returns Ok(()) on success, or an error with stderr details on failure
 pub async fn execute(args: &[&str]) -> Result<(), MonitorError> {
     let output = Command::new("systemctl").args(args).output().await?;
-    
+
     if output.status.success() {
         return Ok(());
     }
@@ -27,8 +27,10 @@ pub async fn execute(args: &[&str]) -> Result<(), MonitorError> {
 
 /// Execute a systemctl command with the given arguments
 /// Returns a success message on success, or an error with stderr details on failure
-pub async fn execute_with_message(args: &[&str], success_message: String) -> Result<String, MonitorError> {
+pub async fn execute_with_message(
+    args: &[&str],
+    success_message: String,
+) -> Result<String, MonitorError> {
     execute(args).await?;
     Ok(success_message)
 }
-

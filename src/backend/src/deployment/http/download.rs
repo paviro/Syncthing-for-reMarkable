@@ -51,4 +51,3 @@ async fn emit_progress(
             .await;
     }
 }
-
