@@ -1,5 +1,6 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 
 Rectangle {
@@ -34,22 +35,22 @@ Rectangle {
 
             Text {
                 text: panel.showPeers ? "Peers" : "Folders"
-                font.pointSize: fs(26)
+                font.pointSize: panel.fs(26)
                 font.bold: true
                 color: "#111c34"
             }
 
             Rectangle {
-                visible: Boolean(syncthingStatus && syncthingStatus.available)
+                visible: Boolean(panel.syncthingStatus && panel.syncthingStatus.available)
                 radius: 12
                 color: "#dfeafe"
-                height: 36
-                width: 180
+                Layout.preferredHeight: 36
+                Layout.preferredWidth: 180
 
                 Text {
                     anchors.centerIn: parent
-                    text: `${panel.showPeers ? peers.length : folders.length} total`
-                    font.pointSize: fs(16)
+                    text: `${panel.showPeers ? panel.peers.length : panel.folders.length} total`
+                    font.pointSize: panel.fs(16)
                     color: "#111c34"
                 }
             }
@@ -58,35 +59,15 @@ Rectangle {
                 Layout.fillWidth: true
             }
 
-            Button {
-                id: peersToggleButton
+            AppButton {
                 text: panel.showPeers ? "Folders" : "Peers"
-                checkable: true
-                checked: panel.showPeers
-                Layout.preferredHeight: 64
-                Layout.minimumWidth: 150
+                fontScale: panel.fontScale
+                fillColor: panel.accentColor
+                pressedColor: "#0f6cca"
                 Layout.preferredWidth: 150
+                Layout.preferredHeight: 64
                 Layout.alignment: Qt.AlignRight
-                font.pointSize: fs(18)
-                padding: 0
                 onClicked: panel.showPeers = !panel.showPeers
-
-                contentItem: Text {
-                    text: peersToggleButton.text
-                    anchors.fill: parent
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    color: "#ffffff"
-                    font.pointSize: fs(18)
-                    font.bold: true
-                }
-
-                background: Rectangle {
-                    radius: 18
-                    color: panel.accentColor
-                    border.color: panel.accentColor
-                    border.width: 0
-                }
             }
         }
 
@@ -122,4 +103,3 @@ Rectangle {
         }
     }
 }
-

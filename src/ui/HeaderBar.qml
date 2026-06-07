@@ -1,8 +1,11 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 
 Rectangle {
+    id: header
+
     property string title: "Syncthing"
     property real fontScale: 1.0
     property color accentColor: "#1887f0"
@@ -29,8 +32,8 @@ Rectangle {
 
         Image {
             source: "qrc:/icon.png"
-            width: 60
-            height: 60
+            Layout.preferredWidth: 60
+            Layout.preferredHeight: 60
             fillMode: Image.PreserveAspectFit
             smooth: true
             visible: parent.width > 500
@@ -40,17 +43,17 @@ Rectangle {
             spacing: 4
             Layout.fillWidth: true
 
-    Text {
-        text: title
-                font.pointSize: fs(32)
-        font.bold: true
-                color: titleColor
+            Text {
+                text: header.title
+                font.pointSize: header.fs(32)
+                font.bold: true
+                color: header.titleColor
                 wrapMode: Text.WordWrap
             }
 
             Text {
                 text: "Monitor Syncthing service & folders"
-                font.pointSize: fs(18)
+                font.pointSize: header.fs(18)
                 color: "#1d2844"
                 wrapMode: Text.WordWrap
             }
@@ -58,26 +61,25 @@ Rectangle {
 
         Rectangle {
             id: closeButton
-            width: 64
-            height: 64
+            Layout.preferredWidth: 64
+            Layout.preferredHeight: 64
             radius: 32
-            color: accentColor
+            color: header.accentColor
             border.width: 0
             opacity: 1
 
             Text {
                 anchors.centerIn: parent
                 text: "\u00D7"
-                font.pointSize: fs(38)
+                font.pointSize: header.fs(38)
                 font.bold: true
                 color: "#ffffff"
             }
 
             MouseArea {
                 anchors.fill: parent
-                onClicked: closeRequested()
+                onClicked: header.closeRequested()
             }
         }
     }
 }
-

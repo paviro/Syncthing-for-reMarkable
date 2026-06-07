@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -183,7 +185,7 @@ Rectangle {
 
                 Text {
                     text: "Settings"
-                    font.pointSize: fs(30)
+                    font.pointSize: overlay.fs(30)
                     font.bold: true
                     color: "#08122e"
                 }
@@ -197,14 +199,14 @@ Rectangle {
                     Layout.preferredWidth: 64
                     Layout.preferredHeight: 64
                     radius: 32
-                    color: overlay.canCloseOverlay() ? accentColor : "#9fa8c4"
+                    color: overlay.canCloseOverlay() ? overlay.accentColor : "#9fa8c4"
                     opacity: overlay.canCloseOverlay() ? 1 : 0.5
                     border.width: 0
 
                     Text {
                         anchors.centerIn: parent
                         text: "\u00D7"
-                        font.pointSize: fs(34)
+                        font.pointSize: overlay.fs(34)
                         font.bold: true
                         color: "#ffffff"
                     }
@@ -217,10 +219,9 @@ Rectangle {
                 }
             }
 
-            Rectangle {
+            Divider {
                 Layout.fillWidth: true
-                height: 2
-                color: "#5e667d"
+                dividerColor: "#5e667d"
             }
 
             ColumnLayout {
@@ -240,16 +241,16 @@ Rectangle {
 
                         Text {
                             text: "Autostart Syncthing"
-                            font.pointSize: fs(22)
+                            font.pointSize: overlay.fs(22)
                             font.bold: true
                             color: "#08122e"
                         }
 
                         Text {
-                            text: isAutostartEnabled() 
+                            text: overlay.isAutostartEnabled()
                                 ? "Syncthing will start automatically when the device boots"
                                 : "Syncthing must be started manually"
-                            font.pointSize: fs(16)
+                            font.pointSize: overlay.fs(16)
                             color: "#1f2538"
                             wrapMode: Text.WordWrap
                             Layout.fillWidth: true
@@ -258,24 +259,23 @@ Rectangle {
 
                     Switch {
                         id: autostartSwitch
-                        checked: isAutostartEnabled()
-                        enabled: !controlBusy
+                        checked: overlay.isAutostartEnabled()
+                        enabled: !overlay.controlBusy
                         scale: 2.2
                         Layout.alignment: Qt.AlignVCenter
                         Layout.rightMargin: 30
-                        
+
                         onClicked: {
                             overlay.autostartToggleRequested(checked)
                         }
                     }
                 }
 
-                Rectangle {
+                Divider {
                     Layout.fillWidth: true
                     Layout.topMargin: 8
                     Layout.bottomMargin: 8
-                    height: 2
-                    color: "#5e667d"
+                    dividerColor: "#5e667d"
                 }
 
                 RowLayout {
@@ -290,16 +290,16 @@ Rectangle {
 
                         Text {
                             text: "Network Access"
-                            font.pointSize: fs(22)
+                            font.pointSize: overlay.fs(22)
                             font.bold: true
                             color: "#08122e"
                         }
 
                         Text {
-                            text: isGuiAddressOpen() 
+                            text: overlay.isGuiAddressOpen()
                                 ? "Syncthing web UI is accessible from other devices on the network"
                                 : "Syncthing web UI is only accessible from this device"
-                            font.pointSize: fs(16)
+                            font.pointSize: overlay.fs(16)
                             color: "#1f2538"
                             wrapMode: Text.WordWrap
                             Layout.fillWidth: true
@@ -308,12 +308,12 @@ Rectangle {
 
                     Switch {
                         id: networkAccessSwitch
-                        checked: isGuiAddressOpen()
-                        enabled: !controlBusy && guiAddress !== ""
+                        checked: overlay.isGuiAddressOpen()
+                        enabled: !overlay.controlBusy && overlay.guiAddress !== ""
                         scale: 2.2
                         Layout.alignment: Qt.AlignVCenter
                         Layout.rightMargin: 30
-                        
+
                         onClicked: {
                             const newAddress = checked ? "0.0.0.0:8384" : "127.0.0.1:8384"
                             overlay.guiAddressToggleRequested(newAddress)
@@ -321,12 +321,11 @@ Rectangle {
                     }
                 }
 
-                Rectangle {
+                Divider {
                     Layout.fillWidth: true
                     Layout.topMargin: 8
                     Layout.bottomMargin: 8
-                    height: 2
-                    color: "#5e667d"
+                    dividerColor: "#5e667d"
                 }
 
                 ColumnLayout {
@@ -345,64 +344,44 @@ Rectangle {
 
                             Text {
                                 text: "Update UI"
-                                font.pointSize: fs(22)
+                                font.pointSize: overlay.fs(22)
                                 font.bold: true
                                 color: "#08122e"
                             }
 
                             Text {
-                                text: getUpdateStatusText()
-                                font.pointSize: fs(16)
-                                color: (updateStatus && updateStatus.error) ? "#a80c0c" : "#1f2538"
+                                text: overlay.getUpdateStatusText()
+                                font.pointSize: overlay.fs(16)
+                                color: (overlay.updateStatus && overlay.updateStatus.error) ? "#a80c0c" : "#1f2538"
                                 wrapMode: Text.WordWrap
                                 Layout.fillWidth: true
                             }
                         }
 
-                        Button {
-                            text: getUpdateButtonLabel()
-                            font.pointSize: fs(20)
-                            enabled: isUpdateButtonEnabled()
+                        AppButton {
+                            text: overlay.getUpdateButtonLabel()
+                            fontScale: overlay.fontScale
+                            fillColor: overlay.isRestartPending() ? "#e2e8fb" : overlay.accentColor
+                            pressedColor: overlay.isRestartPending() ? "#e2e8fb" : "#0f6cca"
+                            textColor: overlay.isRestartPending() ? overlay.accentColor : "#ffffff"
+                            disabledFillColor: "#f5f5f5"
+                            disabledTextColor: "#8a92a8"
+                            enabled: overlay.isUpdateButtonEnabled()
                             Layout.alignment: Qt.AlignVCenter
-                            
-                            contentItem: Text {
-                                text: parent.text
-                                font: parent.font
-                                color: isRestartPending() ? accentColor : "#ffffff"
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            
-                            background: Rectangle {
-                                color: {
-                                    if (!parent.enabled) return "#f5f5f5"
-                                    if (isRestartPending()) {
-                                        return "#e2e8fb"
-                                    }
-                                    return parent.pressed ? "#0f6cca" : accentColor
-                                }
-                                border.color: {
-                                    if (!parent.enabled) return "#d6ddeb"
-                                    if (isRestartPending()) return accentColor
-                                    return accentColor
-                                }
-                                border.width: 2
-                                radius: 16
-                                implicitWidth: 160
-                                implicitHeight: 60
-                            }
-
-                            onClicked: handleUpdateButtonClick()
+                            Layout.preferredWidth: 160
+                            Layout.preferredHeight: 60
+                            border.color: enabled ? overlay.accentColor : "#d6ddeb"
+                            border.width: 2
+                            onClicked: overlay.handleUpdateButtonClick()
                         }
                     }
                 }
 
-                Rectangle {
+                Divider {
                     Layout.fillWidth: true
                     Layout.topMargin: 8
                     Layout.bottomMargin: 8
-                    height: 2
-                    color: "#5e667d"
+                    dividerColor: "#5e667d"
                 }
 
                 ColumnLayout {
@@ -421,47 +400,34 @@ Rectangle {
 
                             Text {
                                 text: "Update Syncthing"
-                                font.pointSize: fs(22)
+                                font.pointSize: overlay.fs(22)
                                 font.bold: true
                                 color: "#08122e"
                             }
 
                             Text {
-                                text: getSyncthingUpdateStatusText()
-                                font.pointSize: fs(16)
-                                color: (syncthingUpdateStatus && syncthingUpdateStatus.error) ? "#a80c0c" : "#1f2538"
+                                text: overlay.getSyncthingUpdateStatusText()
+                                font.pointSize: overlay.fs(16)
+                                color: (overlay.syncthingUpdateStatus && overlay.syncthingUpdateStatus.error) ? "#a80c0c" : "#1f2538"
                                 wrapMode: Text.WordWrap
                                 Layout.fillWidth: true
                             }
                         }
 
-                        Button {
-                            text: getSyncthingUpdateButtonLabel()
-                            font.pointSize: fs(20)
-                            enabled: !isSyncthingUpdateInProgress() && !isUpdateInProgress() && !isRestartPending()
+                        AppButton {
+                            text: overlay.getSyncthingUpdateButtonLabel()
+                            fontScale: overlay.fontScale
+                            fillColor: overlay.accentColor
+                            pressedColor: "#0f6cca"
+                            disabledFillColor: "#f5f5f5"
+                            disabledTextColor: "#8a92a8"
+                            enabled: !overlay.isSyncthingUpdateInProgress() && !overlay.isUpdateInProgress() && !overlay.isRestartPending()
                             Layout.alignment: Qt.AlignVCenter
-
-                            contentItem: Text {
-                                text: parent.text
-                                font: parent.font
-                                color: "#ffffff"
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-
-                            background: Rectangle {
-                                color: {
-                                    if (!parent.enabled) return "#f5f5f5"
-                                    return parent.pressed ? "#0f6cca" : accentColor
-                                }
-                                border.color: parent.enabled ? accentColor : "#d6ddeb"
-                                border.width: 2
-                                radius: 16
-                                implicitWidth: 160
-                                implicitHeight: 60
-                            }
-
-                            onClicked: handleSyncthingUpdateButtonClick()
+                            Layout.preferredWidth: 160
+                            Layout.preferredHeight: 60
+                            border.color: enabled ? overlay.accentColor : "#d6ddeb"
+                            border.width: 2
+                            onClicked: overlay.handleSyncthingUpdateButtonClick()
                         }
                     }
                 }
@@ -479,7 +445,7 @@ Rectangle {
 
     function hide() {
         if (canCloseOverlay()) {
-        visible = false
+            visible = false
         }
     }
 }

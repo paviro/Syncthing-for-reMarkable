@@ -8,6 +8,11 @@
         <file>ui/FolderPeersPanel.qml</file>
         <file>ui/InstallerPage.qml</file>
         <file>ui/SettingsOverlay.qml</file>
+        <file>ui/AppButton.qml</file>
+        <file>ui/Divider.qml</file>
+        <file>ui/Format.js</file>
+        <file>ui/StatusBadge.qml</file>
+        <file>ui/SyncProgressBar.qml</file>
         <file>icon.png</file>
     </qresource>
 </RCC>

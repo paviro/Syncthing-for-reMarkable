@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 
@@ -89,13 +91,11 @@ Item {
                 Image {
                     id: heroIconWide
                     source: "qrc:/icon.png"
-                    width: 110
-                    height: 110
+                    Layout.preferredWidth: 110
+                    Layout.preferredHeight: 110
                     fillMode: Image.PreserveAspectFit
                     smooth: true
                     Layout.alignment: Qt.AlignTop
-                    Layout.preferredWidth: width
-                    Layout.preferredHeight: height
                 }
 
                 Column {
@@ -104,7 +104,7 @@ Item {
 
                     Text {
                         text: "Install Syncthing"
-                        font.pointSize: fs(36)
+                        font.pointSize: installerPage.fs(36)
                         font.bold: true
                         wrapMode: Text.WordWrap
                         width: parent.width
@@ -113,7 +113,7 @@ Item {
 
                     Text {
                         text: "Syncthing and systemd service installer"
-                        font.pointSize: fs(18)
+                        font.pointSize: installerPage.fs(18)
                         color: "#2a2e38"
                         wrapMode: Text.WordWrap
                         width: parent.width
@@ -138,7 +138,7 @@ Item {
 
                 Text {
                     text: "Install Syncthing"
-                    font.pointSize: fs(36)
+                    font.pointSize: installerPage.fs(36)
                     font.bold: true
                     wrapMode: Text.WordWrap
                     width: parent.width
@@ -148,7 +148,7 @@ Item {
 
                 Text {
                     text: "Download the latest Syncthing build and configure the background service in one tap."
-                    font.pointSize: fs(18)
+                    font.pointSize: installerPage.fs(18)
                     color: "#2a2e38"
                     wrapMode: Text.WordWrap
                     width: parent.width
@@ -174,7 +174,7 @@ Item {
 
                     Text {
                         text: "Current status"
-                        font.pointSize: fs(20)
+                        font.pointSize: installerPage.fs(20)
                         font.bold: true
                         color: "#000000"
                         width: parent.width
@@ -190,8 +190,8 @@ Item {
                             width: parent.width
                             height: binaryContent.implicitHeight + 36
                             radius: 14
-                            color: installerState().binaryReady ? "#bce874" : "#ffd9a8"
-                            border.color: installerState().binaryReady ? "#6b9e2e" : "#b85f00"
+                            color: installerPage.installerState().binaryReady ? "#bce874" : "#ffd9a8"
+                            border.color: installerPage.installerState().binaryReady ? "#6b9e2e" : "#b85f00"
                             border.width: 2
 
                             Column {
@@ -203,17 +203,17 @@ Item {
                                 spacing: 4
 
                                 Text {
-                                    text: installerState().binaryReady ? "Binary ready" : "Binary missing"
-                                    font.pointSize: fs(18)
+                                    text: installerPage.installerState().binaryReady ? "Binary ready" : "Binary missing"
+                                    font.pointSize: installerPage.fs(18)
                                     font.bold: true
-                                    color: installerState().binaryReady ? "#2a3d0a" : "#6e3800"
+                                    color: installerPage.installerState().binaryReady ? "#2a3d0a" : "#6e3800"
                                     wrapMode: Text.WordWrap
                                     width: parent.width
                                 }
 
                                 Text {
-                                    text: installerState().binaryReady ? "Syncthing executable found on the device." : "We will download the latest Syncthing binary."
-                                    font.pointSize: fs(16)
+                                    text: installerPage.installerState().binaryReady ? "Syncthing executable found on the device." : "We will download the latest Syncthing binary."
+                                    font.pointSize: installerPage.fs(16)
                                     color: "#1a1d22"
                                     wrapMode: Text.WordWrap
                                     width: parent.width
@@ -226,8 +226,8 @@ Item {
                             width: parent.width
                             height: serviceContent.implicitHeight + 36
                             radius: 14
-                            color: installerState().serviceReady ? "#bce874" : "#ffcaca"
-                            border.color: installerState().serviceReady ? "#6b9e2e" : "#b81c1c"
+                            color: installerPage.installerState().serviceReady ? "#bce874" : "#ffcaca"
+                            border.color: installerPage.installerState().serviceReady ? "#6b9e2e" : "#b81c1c"
                             border.width: 2
 
                             Column {
@@ -239,17 +239,17 @@ Item {
                                 spacing: 4
 
                                 Text {
-                                    text: installerState().serviceReady ? "Service configured" : "Service missing"
-                                    font.pointSize: fs(18)
+                                    text: installerPage.installerState().serviceReady ? "Service configured" : "Service missing"
+                                    font.pointSize: installerPage.fs(18)
                                     font.bold: true
-                                    color: installerState().serviceReady ? "#2a3d0a" : "#6e0a0a"
+                                    color: installerPage.installerState().serviceReady ? "#2a3d0a" : "#6e0a0a"
                                     wrapMode: Text.WordWrap
                                     width: parent.width
                                 }
 
                                 Text {
-                                    text: installerState().serviceReady ? "systemd service is active." : "We will create and enable the Syncthing systemd service."
-                                    font.pointSize: fs(16)
+                                    text: installerPage.installerState().serviceReady ? "systemd service is active." : "We will create and enable the Syncthing systemd service."
+                                    font.pointSize: installerPage.fs(16)
                                     color: "#1a1d22"
                                     wrapMode: Text.WordWrap
                                     width: parent.width
@@ -265,8 +265,8 @@ Item {
                 spacing: 8
 
                 Text {
-                    text: installerPrimaryText()
-                    font.pointSize: fs(20)
+                    text: installerPage.installerPrimaryText()
+                    font.pointSize: installerPage.fs(20)
                     font.bold: true
                     wrapMode: Text.WordWrap
                     width: parent.width
@@ -274,9 +274,9 @@ Item {
                 }
 
                 Text {
-                    text: installerSecondaryText()
-                    visible: installerSecondaryText().length > 0
-                    font.pointSize: fs(18)
+                    text: installerPage.installerSecondaryText()
+                    visible: installerPage.installerSecondaryText().length > 0
+                    font.pointSize: installerPage.fs(18)
                     color: "#1a1d22"
                     wrapMode: Text.WordWrap
                     width: parent.width
@@ -288,56 +288,35 @@ Item {
                 spacing: 20
                 anchors.horizontalCenter: parent.horizontalCenter
 
-                Rectangle {
-                    id: installButton
+                AppButton {
                     width: Math.max(220, Math.min(card.width * 0.45, 420))
                     height: 72
-                    radius: 14
-                    border.width: 0
-                    color: installerPage.isInstalling ? "#a8cef0" : "#1887f0"
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: installerPage.isInstalling ? "Installing..." : "Install now"
-                        font.pointSize: fs(20)
-                        font.bold: true
-                        color: "#ffffff"
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        enabled: !installerPage.isInstalling
-                        onClicked: installerPage.installRequested()
-                    }
+                    text: installerPage.isInstalling ? "Installing..." : "Install now"
+                    fontScale: installerPage.fontScale
+                    fillColor: "#1887f0"
+                    disabledFillColor: "#a8cef0"
+                    buttonRadius: 14
+                    enabled: !installerPage.isInstalling
+                    onClicked: installerPage.installRequested()
                 }
 
-                Rectangle {
+                AppButton {
                     width: Math.max(220, Math.min(card.width * 0.45, 420))
                     height: 72
-                    radius: 14
-                    border.width: 0
-                    color: "#cc3333"
-                    visible: dismissable
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "Not now"
-                        font.pointSize: fs(20)
-                        font.bold: true
-                        color: "#ffffff"
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: installerPage.dismissRequested()
-                    }
+                    text: "Not now"
+                    fontScale: installerPage.fontScale
+                    fillColor: "#cc3333"
+                    pressedColor: "#a92727"
+                    buttonRadius: 14
+                    visible: installerPage.dismissable
+                    onClicked: installerPage.dismissRequested()
                 }
             }
         }
     }
 
     Rectangle {
-        visible: progressMessage().length > 0
+        visible: installerPage.progressMessage().length > 0
         width: Math.min(parent.width - 32, 1024)
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: card.bottom
@@ -354,15 +333,15 @@ Item {
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.margins: 18
-            text: progressMessage()
-            font.pointSize: fs(16)
+            text: installerPage.progressMessage()
+            font.pointSize: installerPage.fs(16)
             color: "#0a1a3d"
             wrapMode: Text.WordWrap
         }
     }
 
     Rectangle {
-        visible: errorMessage().length > 0
+        visible: installerPage.errorMessage().length > 0
         width: Math.min(parent.width - 32, 1024)
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: card.bottom
@@ -379,11 +358,10 @@ Item {
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.margins: 18
-            text: errorMessage()
-            font.pointSize: fs(16)
+            text: installerPage.errorMessage()
+            font.pointSize: installerPage.fs(16)
             color: "#6e0000"
             wrapMode: Text.WordWrap
         }
     }
 }
-

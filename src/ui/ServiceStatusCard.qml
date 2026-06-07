@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 
@@ -74,23 +76,23 @@ Rectangle {
 
                 Text {
                     text: "Service status"
-                    font.pointSize: fs(18)
+                    font.pointSize: card.fs(18)
                     font.bold: true
                     color: "#1a1e2d"
                 }
 
                 Rectangle {
                     radius: 18
-                    height: 96
-                    color: serviceHealthy() ? "#c2ddff" : "#ffd4b8"
+                    Layout.preferredHeight: 96
+                    color: card.serviceHealthy() ? "#c2ddff" : "#ffd4b8"
                     border.width: 0
                     Layout.fillWidth: true
 
                     Text {
                         anchors.centerIn: parent
                         width: parent.width - 36
-                        text: friendlyServiceState()
-                        font.pointSize: fs(18)
+                        text: card.friendlyServiceState()
+                        font.pointSize: card.fs(18)
                         font.bold: true
                         color: "#112233"
                         horizontalAlignment: Text.AlignHCenter
@@ -105,23 +107,23 @@ Rectangle {
 
                 Text {
                     text: "Syncthing API"
-                    font.pointSize: fs(18)
+                    font.pointSize: card.fs(18)
                     font.bold: true
                     color: "#1a1e2d"
                 }
 
                 Rectangle {
                     radius: 18
-                    height: 96
-                    color: syncthingStatus.available ? "#c4f485" : "#f53636"
+                    Layout.preferredHeight: 96
+                    color: card.syncthingStatus.available ? "#c4f485" : "#f53636"
                     border.width: 0
                     Layout.fillWidth: true
 
-        Text {
+                    Text {
                         anchors.centerIn: parent
                         width: parent.width - 36
-                        text: friendlySyncthingState()
-                        font.pointSize: fs(18)
+                        text: card.friendlySyncthingState()
+                        font.pointSize: card.fs(18)
                         font.bold: true
                         color: "#112233"
                         horizontalAlignment: Text.AlignHCenter
@@ -131,10 +133,9 @@ Rectangle {
             }
         }
 
-        Rectangle {
+        Divider {
             Layout.fillWidth: true
-            height: 2
-            color: "#6a738d"
+            dividerColor: "#6a738d"
         }
 
         RowLayout {
@@ -148,64 +149,41 @@ Rectangle {
                     { label: "Restart", action: "restart" }
                 ]
 
-                delegate: Rectangle {
+                delegate: AppButton {
                     required property var modelData
-                    width: 150
-                    height: 64
-                    radius: 18
-                    color: controlBusy ? "#cfd7eb" : accentColor
-                    opacity: controlBusy ? 0.7 : 1
-                    border.width: 0
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: modelData.label
-                        font.pointSize: fs(18)
-                        font.bold: true
-                        color: "#ffffff"
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        enabled: !controlBusy
-                        onClicked: card.controlRequested(modelData.action)
-                    }
+                    text: modelData.label
+                    fontScale: card.fontScale
+                    fillColor: card.accentColor
+                    disabledFillColor: "#cfd7eb"
+                    enabled: !card.controlBusy
+                    buttonRadius: 18
+                    Layout.preferredWidth: 150
+                    Layout.preferredHeight: 64
+                    onClicked: card.controlRequested(modelData.action)
                 }
             }
 
             Item { Layout.fillWidth: true }
 
-            Rectangle {
-                width: 150
-                height: 64
-                radius: 18
-                color: controlBusy ? "#cfd7eb" : accentColor
-                opacity: controlBusy ? 0.7 : 1
-                border.width: 0
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "Settings"
-                    font.pointSize: fs(18)
-                    font.bold: true
-                    color: "#ffffff"
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    enabled: !controlBusy
-                    onClicked: card.settingsRequested()
-                }
+            AppButton {
+                text: "Settings"
+                fontScale: card.fontScale
+                fillColor: card.accentColor
+                disabledFillColor: "#cfd7eb"
+                enabled: !card.controlBusy
+                buttonRadius: 18
+                Layout.preferredWidth: 150
+                Layout.preferredHeight: 64
+                onClicked: card.settingsRequested()
             }
         }
 
         Text {
             Layout.fillWidth: true
-            visible: (installerStatus && installerStatus.installer_disabled) && installerAttentionRequired
+            visible: (card.installerStatus && card.installerStatus.installer_disabled) && card.installerAttentionRequired
             text: "Syncthing installer disabled in config. Please install manually."
-            font.pointSize: fs(16)
+            font.pointSize: card.fs(16)
             color: "#8a2e00"
         }
     }
 }
-
