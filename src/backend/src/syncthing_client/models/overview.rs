@@ -17,38 +17,38 @@ pub struct SyncthingOverview {
 }
 
 impl SyncthingOverview {
-    pub fn from_value(value: &Value) -> Self {
+    pub fn from_values(status_value: &Value, version_value: &Value) -> Self {
         Self {
             available: true,
-            my_id: value
+            my_id: status_value
                 .get("myID")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string()),
-            version: value
+            version: version_value
                 .get("version")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string()),
-            state: value
+            state: status_value
                 .get("state")
-                .or_else(|| value.get("status"))
+                .or_else(|| status_value.get("status"))
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string()),
-            health: value
+            health: status_value
                 .get("health")
-                .or_else(|| value.get("status"))
+                .or_else(|| status_value.get("status"))
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string()),
-            started_at: value
+            started_at: status_value
                 .get("startTime")
-                .or_else(|| value.get("startedAt"))
+                .or_else(|| status_value.get("startedAt"))
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string()),
-            uptime_seconds: value.get("uptime").and_then(|v| v.as_f64()),
-            sequence: value
+            uptime_seconds: status_value.get("uptime").and_then(|v| v.as_f64()),
+            sequence: status_value
                 .get("sequence")
-                .or_else(|| value.get("dbSequence"))
+                .or_else(|| status_value.get("dbSequence"))
                 .and_then(|v| v.as_u64()),
-            goroutine_count: value.get("goroutineCount").and_then(|v| v.as_u64()),
+            goroutine_count: status_value.get("goroutineCount").and_then(|v| v.as_u64()),
             errors: Vec::new(),
         }
     }

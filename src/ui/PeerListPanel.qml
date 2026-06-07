@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "Format.js" as Format
+import "Theme.js" as Theme
 
 Item {
     id: peersPanel
@@ -11,7 +12,7 @@ Item {
     property real fontScale: 1.0
     property var peers: []
     property var syncthingStatus: ({})
-    property color accentColor: "#1887f0"
+    property color accentColor: Theme.peerAccent
     property string expandedPeerKey: ""
 
     Layout.fillWidth: true
@@ -23,15 +24,47 @@ Item {
 
     function peerStatusInfo(peer) {
         if (!peer)
-            return ({ label: "Unknown", color: "#ffd2a0" })
+            return ({ label: "Unknown", color: Theme.warningBg, outline: Theme.warningBorder })
         if (peer.paused)
-            return ({ label: "Paused", color: "#cfd7eb" })
+            return ({ label: "Paused", color: Theme.mutedBg, outline: Theme.mutedBorder })
         var needBytes = Number(peer.need_bytes || 0)
         if (!peer.connected)
-            return ({ label: "Offline", color: "#f76060" })
+            return ({ label: "Offline", color: Theme.errorBg, outline: Theme.errorBorder })
         if (needBytes > 0)
-            return ({ label: "Syncing", color: "#ffd2a0" })
-        return ({ label: "Up to date", color: "#c4f485" })
+            return ({ label: "Syncing", color: Theme.warningBg, outline: Theme.warningBorder })
+        return ({ label: "Up to date", color: Theme.successBg, outline: Theme.successBorder })
+    }
+
+    function peerProgressColor(peer) {
+        if (!peer)
+            return Theme.warningBorder
+        if (peer.paused)
+            return Theme.mutedBorder
+        if (!peer.connected)
+            return Theme.errorBorder
+
+        var needBytes = Number(peer.need_bytes || 0)
+        var completion = Number(peer.completion || 0)
+        if (needBytes <= 0 || completion >= 100)
+            return Theme.successProgress
+
+        return Theme.peerAccent
+    }
+
+    function peerProgressOutlineColor(peer) {
+        if (!peer)
+            return Theme.warningBorder
+        if (peer.paused)
+            return Theme.mutedBorder
+        if (!peer.connected)
+            return Theme.errorBorder
+
+        var needBytes = Number(peer.need_bytes || 0)
+        var completion = Number(peer.completion || 0)
+        if (needBytes <= 0 || completion >= 100)
+            return Theme.successBorder
+
+        return Theme.warningBorder
     }
 
     function peerKey(peer) {
@@ -65,26 +98,39 @@ Item {
             ListView {
                 id: peerList
                 anchors.fill: parent
-                spacing: 16
+                spacing: 14
                 model: peersPanel.peers
                 delegate: Rectangle {
                     id: peerCard
                     required property var modelData
+                    required property int index
                     width: peerList.width
                     implicitHeight: peerContent.implicitHeight + 32
-                    radius: 20
-                    border.width: 2
-                    border.color: "#6c7898"
-                    color: "#ffffff"
+                    radius: 12
+                    border.width: 1
+                    border.color: peerCard.expanded ? peersPanel.accentColor : Theme.borderSoft
+                    color: peerTap.pressed ? Theme.surfacePressed : Theme.listSurface
                     readonly property bool expanded: peersPanel.isPeerExpanded(modelData)
+                    readonly property var badgeInfo: peersPanel.peerStatusInfo(modelData)
+
+                    Rectangle {
+                        width: 14
+                        radius: 7
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        anchors.margins: 10
+                        color: Theme.itemColorForKey(peersPanel.peerKey(peerCard.modelData), "peer")
+                    }
 
                     Column {
                         id: peerContent
                         anchors.margins: 20
+                        anchors.leftMargin: 34
                         anchors.top: parent.top
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        spacing: 16
+                        spacing: 14
 
                         Row {
                             id: peerHeader
@@ -92,28 +138,40 @@ Item {
                             spacing: 12
 
                             Text {
-                                width: Math.max(0, peerHeader.width - peerStatusBadge.width - peerHeader.spacing)
+                                width: Math.max(0, peerHeader.width - peerStatusBadge.width - peerExpandCue.width - peerHeader.spacing * 2)
                                 text: peerCard.modelData.name || peerCard.modelData.id
                                 font.pointSize: peersPanel.fs(20)
                                 font.bold: true
-                                color: "#14203b"
+                                color: Theme.text
                                 elide: Text.ElideRight
                                 wrapMode: Text.NoWrap
                             }
 
                             StatusBadge {
                                 id: peerStatusBadge
-                                readonly property var badge: peersPanel.peerStatusInfo(peerCard.modelData)
-                                text: peerStatusBadge.badge.label
+                                text: peerCard.badgeInfo.label
                                 fontScale: peersPanel.fontScale
-                                color: peerStatusBadge.badge.color
+                                color: peerCard.badgeInfo.color
+                                outlineColor: peerCard.badgeInfo.outline
+                            }
+
+                            Text {
+                                id: peerExpandCue
+                                width: 30
+                                text: peerCard.expanded ? "−" : "+"
+                                font.pointSize: peersPanel.fs(22)
+                                font.bold: true
+                                color: peersPanel.accentColor
+                                horizontalAlignment: Text.AlignHCenter
                             }
                         }
 
                         SyncProgressBar {
                             width: parent.width
                             value: peerCard.modelData.completion || 0
-                            fillColor: peersPanel.accentColor
+                            fillColor: peersPanel.peerProgressColor(peerCard.modelData)
+                            fillBorderColor: peersPanel.peerProgressOutlineColor(peerCard.modelData)
+                            fillBorderWidth: 1
                             fillOpacity: (peerCard.modelData.connected && !peerCard.modelData.paused) ? 1.0 : 0.35
                         }
 
@@ -124,20 +182,20 @@ Item {
                             Text {
                                 text: `Progress ${peerCard.modelData.completion !== undefined ? Format.formatPercent(peerCard.modelData.completion || 0) : "n/a"}`
                                 font.pointSize: peersPanel.fs(16)
-                                color: "#232a40"
+                                color: Theme.textMuted
                             }
 
                             Text {
                                 text: "·"
                                 font.pointSize: peersPanel.fs(16)
-                                color: "#232a40"
+                                color: Theme.textSubtle
                                 visible: peerCard.modelData.need_bytes !== undefined
                             }
 
                             Text {
                                 text: peerCard.modelData.need_bytes !== undefined ? `Pending ${Format.formatBytes(peerCard.modelData.need_bytes)}` : ""
                                 font.pointSize: peersPanel.fs(16)
-                                color: "#232a40"
+                                color: Theme.textMuted
                                 visible: peerCard.modelData.need_bytes !== undefined
                             }
                         }
@@ -150,7 +208,7 @@ Item {
                         Rectangle {
                             width: parent.width
                             height: peerCard.expanded ? 2 : 0
-                            color: "#aeb8cf"
+                            color: Theme.borderSoft
                             visible: peerCard.expanded
                         }
 
@@ -165,15 +223,19 @@ Item {
                                 Text {
                                     text: peerCard.modelData.address ? `Address ${peerCard.modelData.address}` : (peerCard.modelData.connected ? "" : `Last seen ${Format.formatTimeAgo(peerCard.modelData.last_seen)}`)
                                     font.pointSize: peersPanel.fs(14)
-                                    color: "#2b3146"
+                                    color: Theme.textMuted
                                     visible: !!peerCard.modelData.address || !peerCard.modelData.connected
+                                    width: peerDetails.width
+                                    elide: Text.ElideRight
                                 }
 
                                 Text {
                                     text: peerCard.modelData.client_version ? `Client ${peerCard.modelData.client_version}` : ""
                                     font.pointSize: peersPanel.fs(14)
-                                    color: "#2b3146"
+                                    color: Theme.textMuted
                                     visible: !!peerCard.modelData.client_version
+                                    width: peerDetails.width
+                                    elide: Text.ElideRight
                                 }
                             }
 
@@ -185,7 +247,7 @@ Item {
                                     text: "Folder progress"
                                     font.pointSize: peersPanel.fs(16)
                                     font.bold: true
-                                    color: "#111c34"
+                                    color: Theme.text
                                 }
 
                                 Repeater {
@@ -194,7 +256,9 @@ Item {
                                         required property var modelData
                                         text: `${modelData.folder_label}: ${modelData.completion !== undefined ? Format.formatPercent(modelData.completion || 0) : (modelData.need_bytes !== undefined ? Format.formatBytes(modelData.need_bytes) + " pending" : "n/a")}`
                                         font.pointSize: peersPanel.fs(14)
-                                        color: "#2b3146"
+                                        color: Theme.textMuted
+                                        width: peerDetails.width
+                                        elide: Text.ElideRight
                                     }
                                 }
                             }
@@ -207,6 +271,7 @@ Item {
                     }
 
                     MouseArea {
+                        id: peerTap
                         anchors.fill: parent
                         acceptedButtons: Qt.LeftButton
                         onClicked: peersPanel.togglePeer(peerCard.modelData)
@@ -217,17 +282,21 @@ Item {
 
         Rectangle {
             visible: peersPanel.peers.length === 0
-            radius: 18
+            radius: 12
             Layout.fillWidth: true
             Layout.preferredHeight: 84
-            color: "#ffffff"
-            border.color: "#6c7898"
+            color: Theme.listSurface
+            border.color: Theme.borderSoft
+            border.width: 1
 
             Text {
                 anchors.centerIn: parent
+                width: parent.width - 32
                 text: peersPanel.syncthingStatus.available ? "No peers have connected yet." : "Waiting for Syncthing to respond..."
                 font.pointSize: peersPanel.fs(18)
-                color: "#111c34"
+                color: Theme.textMuted
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
             }
         }
     }

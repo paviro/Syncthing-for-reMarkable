@@ -1,15 +1,19 @@
 import QtQuick
+import "Theme.js" as Theme
 
 Rectangle {
     id: badge
 
     property string text: "Unknown"
     property real fontScale: 1.0
-    property color textColor: "#1b2236"
+    property color textColor: Theme.text
+    property color outlineColor: Theme.borderSoft
 
     implicitWidth: Math.max(130, badgeText.implicitWidth + 24)
     implicitHeight: 38
-    radius: 14
+    radius: 10
+    border.width: 1
+    border.color: badge.outlineColor
 
     function fs(value) {
         return value * badge.fontScale
@@ -21,6 +25,7 @@ Rectangle {
         width: Math.max(0, parent.width - 16)
         text: badge.text
         font.pointSize: badge.fs(16)
+        font.bold: true
         color: badge.textColor
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter

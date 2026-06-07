@@ -2,38 +2,46 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import "Theme.js" as Theme
 
 Rectangle {
     id: header
 
     property string title: "Syncthing"
+    property string version: ""
     property real fontScale: 1.0
-    property color accentColor: "#1887f0"
-    property color titleColor: "#0a1a3d"
+    property color accentColor: Theme.accent
+    property color titleColor: Theme.text
 
     signal closeRequested()
 
     Layout.fillWidth: true
-    radius: 22
-    border.width: 2
-    border.color: "#4c5878"
-    color: "#eef0f4"
-    implicitHeight: contentRow.implicitHeight + 32
+    radius: 14
+    border.width: 1
+    border.color: Theme.border
+    color: Theme.headerSurface
+    implicitHeight: contentRow.implicitHeight + 62
 
     function fs(value) {
         return value * fontScale
     }
 
+    function displayVersion() {
+        if (!version || version.length === 0)
+            return ""
+        return version.charAt(0).toLowerCase() === "v" ? version : `v${version}`
+    }
+
     RowLayout {
         id: contentRow
         anchors.fill: parent
-        anchors.margins: 20
-        spacing: 18
+        anchors.margins: 34
+        spacing: 24
 
         Image {
             source: "qrc:/icon.png"
-            Layout.preferredWidth: 60
-            Layout.preferredHeight: 60
+            Layout.preferredWidth: 112
+            Layout.preferredHeight: 112
             fillMode: Image.PreserveAspectFit
             smooth: true
             visible: parent.width > 500
@@ -43,18 +51,46 @@ Rectangle {
             spacing: 4
             Layout.fillWidth: true
 
-            Text {
-                text: header.title
-                font.pointSize: header.fs(32)
-                font.bold: true
-                color: header.titleColor
-                wrapMode: Text.WordWrap
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 14
+
+                Text {
+                    text: header.title
+                    font.pointSize: header.fs(30)
+                    font.bold: true
+                    color: Theme.text
+                    wrapMode: Text.NoWrap
+                    elide: Text.ElideRight
+                }
+
+                Rectangle {
+                    visible: header.displayVersion().length > 0
+                    Layout.preferredWidth: versionText.implicitWidth + 24
+                    Layout.preferredHeight: 38
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.topMargin: 6
+                    radius: 10
+                    color: Theme.mutedBg
+                    border.width: 1
+                    border.color: Theme.mutedBorder
+
+                    Text {
+                        id: versionText
+                        anchors.centerIn: parent
+                        text: header.displayVersion()
+                        font.pointSize: header.fs(15)
+                        font.bold: true
+                        color: Theme.textMuted
+                        elide: Text.ElideRight
+                    }
+                }
             }
 
             Text {
                 text: "Monitor Syncthing service & folders"
                 font.pointSize: header.fs(18)
-                color: "#1d2844"
+                color: Theme.text
                 wrapMode: Text.WordWrap
             }
         }
@@ -63,9 +99,10 @@ Rectangle {
             id: closeButton
             Layout.preferredWidth: 64
             Layout.preferredHeight: 64
-            radius: 32
-            color: header.accentColor
-            border.width: 0
+            radius: 12
+            color: closeTap.pressed ? Theme.accentPressed : header.accentColor
+            border.width: 1
+            border.color: header.accentColor
             opacity: 1
 
             Text {
@@ -73,10 +110,11 @@ Rectangle {
                 text: "\u00D7"
                 font.pointSize: header.fs(38)
                 font.bold: true
-                color: "#ffffff"
+                color: Theme.onAccent
             }
 
             MouseArea {
+                id: closeTap
                 anchors.fill: parent
                 onClicked: header.closeRequested()
             }

@@ -11,6 +11,7 @@
         <file>ui/AppButton.qml</file>
         <file>ui/Divider.qml</file>
         <file>ui/Format.js</file>
+        <file>ui/Theme.js</file>
         <file>ui/StatusBadge.qml</file>
         <file>ui/SyncProgressBar.qml</file>
         <file>icon.png</file>

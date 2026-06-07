@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import "Theme.js" as Theme
 
 Rectangle {
     id: card
@@ -12,17 +13,17 @@ Rectangle {
     property bool controlBusy: false
     property var installerStatus: null
     property bool installerAttentionRequired: false
-    property color accentColor: "#1887f0"
+    property color accentColor: Theme.accent
 
     signal controlRequested(string action)
     signal settingsRequested()
 
     Layout.fillWidth: true
     Layout.preferredHeight: contentColumn.implicitHeight + 40
-    radius: 20
-    border.width: 2
-    border.color: "#4f5978"
-    color: "#ffffff"
+    radius: 14
+    border.width: 1
+    border.color: Theme.border
+    color: Theme.dashboardSurface
 
     function fs(value) {
         return value * fontScale
@@ -51,8 +52,7 @@ Rectangle {
 
     function friendlySyncthingState() {
         if (syncthingStatus.available) {
-            const version = syncthingStatus.version
-            return version ? `Connected (${version})` : "Connected"
+            return "Connected"
         }
         return "Offline"
     }
@@ -63,8 +63,8 @@ Rectangle {
         anchors.leftMargin: 28
         anchors.rightMargin: 28
         anchors.bottomMargin: 28
-        anchors.topMargin: 18
-        spacing: 18
+        anchors.topMargin: 24
+        spacing: 16
 
         RowLayout {
             Layout.fillWidth: true
@@ -78,23 +78,34 @@ Rectangle {
                     text: "Service status"
                     font.pointSize: card.fs(18)
                     font.bold: true
-                    color: "#1a1e2d"
+                    color: Theme.text
                 }
 
                 Rectangle {
-                    radius: 18
-                    Layout.preferredHeight: 96
-                    color: card.serviceHealthy() ? "#c2ddff" : "#ffd4b8"
-                    border.width: 0
+                    radius: 12
+                    Layout.preferredHeight: 90
+                    color: card.serviceHealthy() ? Theme.successBg : Theme.warningBg
+                    border.width: 1
+                    border.color: card.serviceHealthy() ? Theme.successBorder : Theme.warningBorder
                     Layout.fillWidth: true
+
+                    Rectangle {
+                        width: 10
+                        radius: 5
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        anchors.margins: 10
+                        color: card.serviceHealthy() ? Theme.successBorder : Theme.warningBorder
+                    }
 
                     Text {
                         anchors.centerIn: parent
-                        width: parent.width - 36
+                        width: parent.width - 54
                         text: card.friendlyServiceState()
                         font.pointSize: card.fs(18)
                         font.bold: true
-                        color: "#112233"
+                        color: Theme.text
                         horizontalAlignment: Text.AlignHCenter
                         wrapMode: Text.WordWrap
                     }
@@ -109,23 +120,34 @@ Rectangle {
                     text: "Syncthing API"
                     font.pointSize: card.fs(18)
                     font.bold: true
-                    color: "#1a1e2d"
+                    color: Theme.text
                 }
 
                 Rectangle {
-                    radius: 18
-                    Layout.preferredHeight: 96
-                    color: card.syncthingStatus.available ? "#c4f485" : "#f53636"
-                    border.width: 0
+                    radius: 12
+                    Layout.preferredHeight: 90
+                    color: card.syncthingStatus.available ? Theme.successBg : Theme.errorBg
+                    border.width: 1
+                    border.color: card.syncthingStatus.available ? Theme.successBorder : Theme.errorBorder
                     Layout.fillWidth: true
+
+                    Rectangle {
+                        width: 10
+                        radius: 5
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        anchors.margins: 10
+                        color: card.syncthingStatus.available ? Theme.successBorder : Theme.errorBorder
+                    }
 
                     Text {
                         anchors.centerIn: parent
-                        width: parent.width - 36
+                        width: parent.width - 54
                         text: card.friendlySyncthingState()
                         font.pointSize: card.fs(18)
                         font.bold: true
-                        color: "#112233"
+                        color: Theme.text
                         horizontalAlignment: Text.AlignHCenter
                         wrapMode: Text.WordWrap
                     }
@@ -135,7 +157,7 @@ Rectangle {
 
         Divider {
             Layout.fillWidth: true
-            dividerColor: "#6a738d"
+            dividerColor: Theme.borderSoft
         }
 
         RowLayout {
@@ -144,19 +166,21 @@ Rectangle {
 
             Repeater {
                 model: [
-                    { label: "Start", action: "start" },
-                    { label: "Stop", action: "stop" },
-                    { label: "Restart", action: "restart" }
+                    { label: "Start", action: "start", fill: Theme.successBorder, pressed: Theme.successPressed },
+                    { label: "Stop", action: "stop", fill: Theme.errorBorder, pressed: Theme.errorPressed },
+                    { label: "Restart", action: "restart", fill: Theme.warningBorder, pressed: Theme.warningPressed }
                 ]
 
                 delegate: AppButton {
                     required property var modelData
                     text: modelData.label
                     fontScale: card.fontScale
-                    fillColor: card.accentColor
-                    disabledFillColor: "#cfd7eb"
+                    fillColor: modelData.fill
+                    pressedColor: modelData.pressed
+                    outlineColor: modelData.fill
+                    disabledFillColor: Theme.mutedBg
                     enabled: !card.controlBusy
-                    buttonRadius: 18
+                    buttonRadius: 10
                     Layout.preferredWidth: 150
                     Layout.preferredHeight: 64
                     onClicked: card.controlRequested(modelData.action)
@@ -169,9 +193,10 @@ Rectangle {
                 text: "Settings"
                 fontScale: card.fontScale
                 fillColor: card.accentColor
-                disabledFillColor: "#cfd7eb"
+                pressedColor: Theme.accentPressed
+                disabledFillColor: Theme.mutedBg
                 enabled: !card.controlBusy
-                buttonRadius: 18
+                buttonRadius: 10
                 Layout.preferredWidth: 150
                 Layout.preferredHeight: 64
                 onClicked: card.settingsRequested()
@@ -183,7 +208,7 @@ Rectangle {
             visible: (card.installerStatus && card.installerStatus.installer_disabled) && card.installerAttentionRequired
             text: "Syncthing installer disabled in config. Please install manually."
             font.pointSize: card.fs(16)
-            color: "#8a2e00"
+            color: Theme.warningBorder
         }
     }
 }

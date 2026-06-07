@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import net.asivery.AppLoad 1.0
+import "Theme.js" as Theme
 
 Rectangle {
     id: root
@@ -48,9 +49,9 @@ Rectangle {
     property int updateRestartCountdown: 0
     property var syncthingUpdateCheckResult: null
     property var syncthingUpdateStatus: null
-    property color backgroundColor: "#cbd1de"
-    property color accentColor: "#1887f0"
-    property color textColorPrimary: "#08122e"
+    property color backgroundColor: Theme.background
+    property color accentColor: Theme.accent
+    property color textColorPrimary: Theme.text
     onInstallerStatusChanged: {
         if (!installerNeedsAttention()) {
             installerPromptDismissed = false
@@ -235,44 +236,45 @@ Rectangle {
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 36
-                spacing: 28
+                anchors.margins: 32
+                spacing: 22
 
-            HeaderBar {
-                title: "Syncthing"
-                fontScale: root.fontScale
+                HeaderBar {
+                    title: "Syncthing"
+                    version: root.syncthingStatus.version || ""
+                    fontScale: root.fontScale
                     accentColor: root.accentColor
                     titleColor: root.textColorPrimary
-                
-                onCloseRequested: {
-                    root.unloading()
-                    root.close()
+
+                    onCloseRequested: {
+                        root.unloading()
+                        root.close()
+                    }
                 }
-            }
 
-            ServiceStatusCard {
-                fontScale: root.fontScale
-                serviceStatus: root.serviceStatus
-                syncthingStatus: root.syncthingStatus
-                controlBusy: root.controlBusy
-                installerStatus: root.installerStatus
-                installerAttentionRequired: root.installerNeedsAttention()
-                Layout.fillWidth: true
+                ServiceStatusCard {
+                    fontScale: root.fontScale
+                    serviceStatus: root.serviceStatus
+                    syncthingStatus: root.syncthingStatus
+                    controlBusy: root.controlBusy
+                    installerStatus: root.installerStatus
+                    installerAttentionRequired: root.installerNeedsAttention()
+                    Layout.fillWidth: true
                     accentColor: root.accentColor
 
-                onControlRequested: controlService(action)
-                onSettingsRequested: settingsOverlay.show()
-            }
+                    onControlRequested: controlService(action)
+                    onSettingsRequested: settingsOverlay.show()
+                }
 
-            FolderPeersPanel {
-                fontScale: root.fontScale
-                folders: root.folders
-                peers: root.peers
-                syncthingStatus: root.syncthingStatus
-                Layout.fillWidth: true
-                Layout.fillHeight: true
+                FolderPeersPanel {
+                    fontScale: root.fontScale
+                    folders: root.folders
+                    peers: root.peers
+                    syncthingStatus: root.syncthingStatus
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
                     accentColor: root.accentColor
-            }
+                }
 
             }
         }

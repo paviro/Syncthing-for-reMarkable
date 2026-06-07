@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import "Theme.js" as Theme
 
 Item {
     id: installerPage
@@ -61,26 +62,26 @@ Item {
         id: backgroundRect
         anchors.fill: parent
         anchors.margins: -32
-        color: "#d8dce6"
+        color: Theme.background
     }
 
     Rectangle {
         id: card
-        property int cardPadding: 36
+        property int cardPadding: 34
         width: Math.min(parent.width - 32, 1024)
         height: cardContent.implicitHeight + card.cardPadding * 2
         anchors.horizontalCenter: parent.horizontalCenter
         y: Math.max(16, (parent.height - height) / 2)
-        radius: 24
-        border.width: 3
-        border.color: "#8a92a8"
-        color: "#ffffff"
+        radius: 16
+        border.width: 1
+        border.color: Theme.border
+        color: Theme.surface
 
         Column {
             id: cardContent
             anchors.fill: parent
             anchors.margins: card.cardPadding
-            spacing: 28
+            spacing: 24
 
             RowLayout {
                 id: heroRow
@@ -108,13 +109,13 @@ Item {
                         font.bold: true
                         wrapMode: Text.WordWrap
                         width: parent.width
-                        color: "#000000"
+                        color: Theme.text
                     }
 
                     Text {
                         text: "Syncthing and systemd service installer"
                         font.pointSize: installerPage.fs(18)
-                        color: "#2a2e38"
+                        color: Theme.textMuted
                         wrapMode: Text.WordWrap
                         width: parent.width
                     }
@@ -142,14 +143,14 @@ Item {
                     font.bold: true
                     wrapMode: Text.WordWrap
                     width: parent.width
-                    color: "#000000"
+                    color: Theme.text
                     horizontalAlignment: Text.AlignHCenter
                 }
 
                 Text {
                     text: "Download the latest Syncthing build and configure the background service in one tap."
                     font.pointSize: installerPage.fs(18)
-                    color: "#2a2e38"
+                    color: Theme.textMuted
                     wrapMode: Text.WordWrap
                     width: parent.width
                     horizontalAlignment: Text.AlignHCenter
@@ -159,10 +160,10 @@ Item {
             Rectangle {
                 width: parent.width
                 height: statusContainer.height + 48
-                radius: 18
-                color: "#e8edf5"
-                border.color: "#a0aac2"
-                border.width: 2
+                radius: 12
+                color: Theme.surfaceMuted
+                border.color: Theme.borderSoft
+                border.width: 1
 
                 Column {
                     id: statusContainer
@@ -176,7 +177,7 @@ Item {
                         text: "Current status"
                         font.pointSize: installerPage.fs(20)
                         font.bold: true
-                        color: "#000000"
+                        color: Theme.text
                         width: parent.width
                     }
 
@@ -189,10 +190,10 @@ Item {
                             id: binaryCard
                             width: parent.width
                             height: binaryContent.implicitHeight + 36
-                            radius: 14
-                            color: installerPage.installerState().binaryReady ? "#bce874" : "#ffd9a8"
-                            border.color: installerPage.installerState().binaryReady ? "#6b9e2e" : "#b85f00"
-                            border.width: 2
+                            radius: 12
+                            color: installerPage.installerState().binaryReady ? Theme.successBg : Theme.warningBg
+                            border.color: installerPage.installerState().binaryReady ? Theme.successBorder : Theme.warningBorder
+                            border.width: 1
 
                             Column {
                                 id: binaryContent
@@ -206,7 +207,7 @@ Item {
                                     text: installerPage.installerState().binaryReady ? "Binary ready" : "Binary missing"
                                     font.pointSize: installerPage.fs(18)
                                     font.bold: true
-                                    color: installerPage.installerState().binaryReady ? "#2a3d0a" : "#6e3800"
+                                    color: Theme.text
                                     wrapMode: Text.WordWrap
                                     width: parent.width
                                 }
@@ -214,7 +215,7 @@ Item {
                                 Text {
                                     text: installerPage.installerState().binaryReady ? "Syncthing executable found on the device." : "We will download the latest Syncthing binary."
                                     font.pointSize: installerPage.fs(16)
-                                    color: "#1a1d22"
+                                    color: Theme.textMuted
                                     wrapMode: Text.WordWrap
                                     width: parent.width
                                 }
@@ -225,10 +226,10 @@ Item {
                             id: serviceCard
                             width: parent.width
                             height: serviceContent.implicitHeight + 36
-                            radius: 14
-                            color: installerPage.installerState().serviceReady ? "#bce874" : "#ffcaca"
-                            border.color: installerPage.installerState().serviceReady ? "#6b9e2e" : "#b81c1c"
-                            border.width: 2
+                            radius: 12
+                            color: installerPage.installerState().serviceReady ? Theme.successBg : Theme.errorBg
+                            border.color: installerPage.installerState().serviceReady ? Theme.successBorder : Theme.errorBorder
+                            border.width: 1
 
                             Column {
                                 id: serviceContent
@@ -242,7 +243,7 @@ Item {
                                     text: installerPage.installerState().serviceReady ? "Service configured" : "Service missing"
                                     font.pointSize: installerPage.fs(18)
                                     font.bold: true
-                                    color: installerPage.installerState().serviceReady ? "#2a3d0a" : "#6e0a0a"
+                                    color: Theme.text
                                     wrapMode: Text.WordWrap
                                     width: parent.width
                                 }
@@ -250,7 +251,7 @@ Item {
                                 Text {
                                     text: installerPage.installerState().serviceReady ? "systemd service is active." : "We will create and enable the Syncthing systemd service."
                                     font.pointSize: installerPage.fs(16)
-                                    color: "#1a1d22"
+                                    color: Theme.textMuted
                                     wrapMode: Text.WordWrap
                                     width: parent.width
                                 }
@@ -270,14 +271,14 @@ Item {
                     font.bold: true
                     wrapMode: Text.WordWrap
                     width: parent.width
-                    color: "#000000"
+                    color: Theme.text
                 }
 
                 Text {
                     text: installerPage.installerSecondaryText()
                     visible: installerPage.installerSecondaryText().length > 0
                     font.pointSize: installerPage.fs(18)
-                    color: "#1a1d22"
+                    color: Theme.textMuted
                     wrapMode: Text.WordWrap
                     width: parent.width
                 }
@@ -293,9 +294,10 @@ Item {
                     height: 72
                     text: installerPage.isInstalling ? "Installing..." : "Install now"
                     fontScale: installerPage.fontScale
-                    fillColor: "#1887f0"
-                    disabledFillColor: "#a8cef0"
-                    buttonRadius: 14
+                    fillColor: Theme.accent
+                    pressedColor: Theme.accentPressed
+                    disabledFillColor: Theme.mutedBg
+                    buttonRadius: 10
                     enabled: !installerPage.isInstalling
                     onClicked: installerPage.installRequested()
                 }
@@ -305,9 +307,9 @@ Item {
                     height: 72
                     text: "Not now"
                     fontScale: installerPage.fontScale
-                    fillColor: "#cc3333"
-                    pressedColor: "#a92727"
-                    buttonRadius: 14
+                    fillColor: Theme.errorBorder
+                    pressedColor: Theme.errorPressed
+                    buttonRadius: 10
                     visible: installerPage.dismissable
                     onClicked: installerPage.dismissRequested()
                 }
@@ -316,15 +318,16 @@ Item {
     }
 
     Rectangle {
+        id: progressBox
         visible: installerPage.progressMessage().length > 0
         width: Math.min(parent.width - 32, 1024)
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: card.bottom
         anchors.topMargin: 16
         radius: 12
-        color: "#d9e3f5"
-        border.color: "#7a92c2"
-        border.width: 2
+        color: Theme.accentSoft
+        border.color: Theme.borderSoft
+        border.width: 1
         height: progressText.implicitHeight + 36
 
         Text {
@@ -335,7 +338,7 @@ Item {
             anchors.margins: 18
             text: installerPage.progressMessage()
             font.pointSize: installerPage.fs(16)
-            color: "#0a1a3d"
+            color: Theme.text
             wrapMode: Text.WordWrap
         }
     }
@@ -344,12 +347,12 @@ Item {
         visible: installerPage.errorMessage().length > 0
         width: Math.min(parent.width - 32, 1024)
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top: card.bottom
+        anchors.top: progressBox.visible ? progressBox.bottom : card.bottom
         anchors.topMargin: 16
         radius: 12
-        color: "#ffcccc"
-        border.color: "#cc3333"
-        border.width: 2
+        color: Theme.errorBg
+        border.color: Theme.errorBorder
+        border.width: 1
         height: errorText.implicitHeight + 36
 
         Text {
@@ -360,7 +363,7 @@ Item {
             anchors.margins: 18
             text: installerPage.errorMessage()
             font.pointSize: installerPage.fs(16)
-            color: "#6e0000"
+            color: Theme.text
             wrapMode: Text.WordWrap
         }
     }

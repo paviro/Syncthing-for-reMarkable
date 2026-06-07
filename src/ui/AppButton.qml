@@ -1,25 +1,29 @@
 import QtQuick
+import "Theme.js" as Theme
 
 Rectangle {
     id: button
 
     property string text: ""
     property real fontScale: 1.0
-    property color fillColor: "#1887f0"
-    property color pressedColor: "#0f6cca"
-    property color disabledFillColor: "#cfd7eb"
-    property color textColor: "#ffffff"
-    property color disabledTextColor: "#ffffff"
-    property int buttonRadius: 16
+    property color fillColor: Theme.accent
+    property color pressedColor: Theme.accentPressed
+    property color disabledFillColor: Theme.mutedBg
+    property color textColor: Theme.onAccent
+    property color disabledTextColor: Theme.textSubtle
+    property color outlineColor: fillColor
+    property color disabledOutlineColor: Theme.borderSoft
+    property int buttonRadius: 10
 
     signal clicked()
 
     implicitWidth: 160
     implicitHeight: 60
     radius: button.buttonRadius
-    border.width: 0
+    border.width: 1
+    border.color: button.enabled ? button.outlineColor : button.disabledOutlineColor
     color: button.enabled ? (mouseArea.pressed ? button.pressedColor : button.fillColor) : button.disabledFillColor
-    opacity: button.enabled ? 1.0 : 0.7
+    opacity: button.enabled ? 1.0 : 0.86
 
     function fs(value) {
         return value * button.fontScale

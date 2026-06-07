@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import "Theme.js" as Theme
 
 Rectangle {
     id: panel
@@ -10,15 +11,15 @@ Rectangle {
     property var folders: []
     property var peers: []
     property var syncthingStatus: ({})
-    property color accentColor: "#1887f0"
+    property color accentColor: Theme.accent
     property bool showPeers: false
 
     Layout.fillWidth: true
     Layout.fillHeight: true
-    radius: 22
-    border.width: 2
-    border.color: "#4f5978"
-    color: "#ffffff"
+    radius: 14
+    border.width: 1
+    border.color: Theme.border
+    color: Theme.surface
 
     function fs(value) {
         return value * fontScale
@@ -27,31 +28,41 @@ Rectangle {
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 24
-        spacing: 18
+        spacing: 16
 
         RowLayout {
             Layout.fillWidth: true
             spacing: 12
 
+            Rectangle {
+                radius: 8
+                color: panel.showPeers ? Theme.peerAccent : Theme.folderAccent
+                Layout.preferredHeight: 34
+                Layout.preferredWidth: 18
+            }
+
             Text {
                 text: panel.showPeers ? "Peers" : "Folders"
-                font.pointSize: panel.fs(26)
+                font.pointSize: panel.fs(24)
                 font.bold: true
-                color: "#111c34"
+                color: Theme.text
             }
 
             Rectangle {
                 visible: Boolean(panel.syncthingStatus && panel.syncthingStatus.available)
-                radius: 12
-                color: "#dfeafe"
+                radius: 10
+                color: panel.showPeers ? Theme.peerAccent : Theme.folderAccent
+                border.width: 1
+                border.color: panel.showPeers ? Theme.peerAccentPressed : Theme.folderAccentPressed
                 Layout.preferredHeight: 36
-                Layout.preferredWidth: 180
+                Layout.preferredWidth: 128
 
                 Text {
                     anchors.centerIn: parent
                     text: `${panel.showPeers ? panel.peers.length : panel.folders.length} total`
                     font.pointSize: panel.fs(16)
-                    color: "#111c34"
+                    font.bold: true
+                    color: Theme.onAccent
                 }
             }
 
@@ -62,8 +73,8 @@ Rectangle {
             AppButton {
                 text: panel.showPeers ? "Folders" : "Peers"
                 fontScale: panel.fontScale
-                fillColor: panel.accentColor
-                pressedColor: "#0f6cca"
+                fillColor: panel.showPeers ? Theme.folderAccent : Theme.peerAccent
+                pressedColor: panel.showPeers ? Theme.folderAccentPressed : Theme.peerAccentPressed
                 Layout.preferredWidth: 150
                 Layout.preferredHeight: 64
                 Layout.alignment: Qt.AlignRight
@@ -87,7 +98,7 @@ Rectangle {
             fontScale: panel.fontScale
             folders: panel.folders
             syncthingStatus: panel.syncthingStatus
-            accentColor: panel.accentColor
+            accentColor: Theme.folderAccent
         }
     }
 
@@ -99,7 +110,7 @@ Rectangle {
             fontScale: panel.fontScale
             peers: panel.peers
             syncthingStatus: panel.syncthingStatus
-            accentColor: panel.accentColor
+            accentColor: Theme.peerAccent
         }
     }
 }

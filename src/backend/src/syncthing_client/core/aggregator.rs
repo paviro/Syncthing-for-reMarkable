@@ -30,6 +30,7 @@ impl<'a> DataAggregator<'a> {
     /// Fetches system status, config, recent changes and peer metrics.
     pub async fn compose_payload(&mut self) -> Result<SyncthingData, MonitorError> {
         let status_value: Value = self.http.get_json("/rest/system/status").await?;
+        let version_value: Value = self.http.get_json("/rest/system/version").await?;
         let config: SyncthingConfig = self.http.get_json("/rest/config").await?;
         let folder_ids: HashSet<String> = config.folders.iter().map(|f| f.id.clone()).collect();
         let latest_changes = self.latest_folder_changes(&folder_ids).await?;
@@ -43,7 +44,7 @@ impl<'a> DataAggregator<'a> {
             }
         };
 
-        let overview = SyncthingOverview::from_value(&status_value);
+        let overview = SyncthingOverview::from_values(&status_value, &version_value);
         let my_id = overview.my_id.clone();
 
         let (folder_peer_summaries, peer_progress) = self

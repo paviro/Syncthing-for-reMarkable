@@ -1,10 +1,11 @@
 import QtQuick
+import "Theme.js" as Theme
 
 Rectangle {
     id: divider
 
-    property color dividerColor: "#5e667d"
+    property color dividerColor: Theme.borderSoft
 
-    implicitHeight: 2
+    implicitHeight: 1
     color: divider.dividerColor
 }

@@ -1,15 +1,20 @@
 import QtQuick
+import "Theme.js" as Theme
 
 Rectangle {
     id: progressBar
 
     property real value: 0
-    property color trackColor: "#cbd3e4"
-    property color fillColor: "#1887f0"
+    property color trackColor: Theme.mutedBg
+    property color fillColor: Theme.accent
+    property color fillBorderColor: "transparent"
+    property int fillBorderWidth: 0
     property real fillOpacity: 1.0
 
     implicitHeight: 14
     radius: 8
+    border.width: 1
+    border.color: Theme.borderSoft
     color: progressBar.trackColor
 
     function normalizedValue() {
@@ -25,6 +30,8 @@ Rectangle {
         height: parent.height
         width: parent.width * progressBar.normalizedValue()
         radius: parent.radius
+        border.width: progressBar.fillBorderWidth
+        border.color: progressBar.fillBorderColor
         color: progressBar.fillColor
         opacity: progressBar.fillOpacity
     }
