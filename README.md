@@ -22,7 +22,24 @@ A [rm-appload](https://github.com/asivery/rm-appload) Syncthing application for 
 
 ## How to Install
 
-### Pre-installation Steps
+### Recommended Install Script
+
+SSH into your reMarkable as `root`, then run:
+
+```bash
+wget -O install.sh https://raw.githubusercontent.com/paviro/Syncthing-for-reMarkable/main/install.sh
+sh install.sh
+```
+
+The script checks whether Vellum is already installed. If Vellum is missing, it downloads and runs the Vellum bootstrap script, then installs AppLoad with Vellum, starts XOVI/AppLoad, downloads the latest Syncthing for reMarkable release, and installs it to:
+
+```
+/home/root/xovi/exthome/appload/syncthing
+```
+
+The script prompts before making changes. If an older Syncthing app install exists, the script treats the run as an app update: it preserves the installed Syncthing binary and local `config.json` when present, then replaces the old app files.
+
+### Manual Pre-installation Fallback
 
 The recommended way to install the AppLoad/XOVI prerequisites is [Vellum](https://remarkable.guide/guide/software/vellum.html), the community package manager for reMarkable tablets. Vellum handles package dependencies and device/OS compatibility checks for the packages it installs.
 
@@ -61,7 +78,7 @@ The recommended way to install the AppLoad/XOVI prerequisites is [Vellum](https:
    xovi/start
    ```
 
-### Manual Pre-installation Fallback
+### Manual Non-Vellum Fallback
 
 If you cannot use Vellum, you can install the prerequisites manually:
 
